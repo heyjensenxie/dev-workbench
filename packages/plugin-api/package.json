@@ -1,1 +1,1 @@
-{"name":"@dev-workbench/plugin-api","version":"0.1.0-alpha.2","type":"module","exports":"./src/index.ts","scripts":{"typecheck":"tsc --noEmit -p tsconfig.json"},"dependencies":{"@dev-workbench/command":"workspace:*"},"devDependencies":{"typescript":"^5.9.2"}}
+{"name":"@dev-workbench/plugin-api","version":"0.1.0-alpha.2","type":"module","exports":"./src/index.ts","scripts":{"typecheck":"tsc --noEmit -p tsconfig.json"},"dependencies":{"@dev-workbench/command":"workspace:*"},"devDependencies":{"typescript":"^7.0.2"}}
