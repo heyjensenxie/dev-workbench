@@ -17,6 +17,16 @@ version = "0.1.0-alpha.2"
 edition = "2024"
 license = "Apache-2.0"
 
+# Release artifacts are shipped to end users, so trade compile time for a
+# smaller, faster binary: fat LTO, single codegen unit, size-first optimisation,
+# no unwind tables, and stripped symbols.
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
+
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

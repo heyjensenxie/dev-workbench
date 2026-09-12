@@ -10,7 +10,8 @@
     "build": "pnpm -r --if-present build",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
-    "check:rust": "cargo check --workspace"
+    "check:rust": "cargo check --workspace",
+    "build:portable": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-portable.ps1"
   },
   "devDependencies": {
     "typescript": "^5.9.2",
