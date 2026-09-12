@@ -10,8 +10,8 @@
 //! user explicitly applies one to an item.
 
 use rand::RngCore;
-use rand::seq::SliceRandom;
 use rand::rngs::OsRng;
+use rand::seq::SliceRandom;
 use secrecy::SecretString;
 use serde::Deserialize;
 use zeroize::Zeroize;
@@ -133,7 +133,10 @@ mod tests {
     use std::collections::HashSet;
 
     fn generate_string(options: &GeneratorOptions) -> String {
-        generate(options).expect("generate").expose_secret().to_owned()
+        generate(options)
+            .expect("generate")
+            .expose_secret()
+            .to_owned()
     }
 
     #[test]
@@ -229,7 +232,9 @@ mod tests {
     #[test]
     fn the_default_length_is_generous() {
         assert_eq!(
-            generate_string(&GeneratorOptions::default()).chars().count(),
+            generate_string(&GeneratorOptions::default())
+                .chars()
+                .count(),
             DEFAULT_LENGTH
         );
     }

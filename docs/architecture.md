@@ -2,9 +2,11 @@
 
 Dev Workbench follows one dependency direction: UI composition depends on application capabilities, while native implementation details remain behind `NativeBridge`. Commands receive a workbench snapshot and service container, so shortcuts, plugins, and future automation invoke the same operations as views.
 
-SQLite owns durable non-secret project, service, and setting data. The Rust process runtime owns only processes launched by the app and emits line-oriented logs to the desktop window. OS-specific behavior is isolated inside native adapter crates.
+SQLite owns durable **non-secret** data: projects, services, settings, saved API requests and their modules, database connection profiles, and query history. Two things are deliberately outside it. Secrets go to the OS credential store through `crates/secrets`, which is why a database connection row keeps only a `secretRef`. The Password Vault goes further and keeps its own encrypted database, its own key hierarchy, and no place in the shared service container, so it is a separate trust boundary rather than another table (see [vault-security.md](vault-security.md)).
 
-The plugin API remains intentionally small in this release. Empty plugin and native capability packages define ownership, not implemented features.
+The Rust process runtime owns only processes launched by the app and emits line-oriented logs to the desktop window. OS-specific behavior is isolated inside native adapter crates.
+
+`packages/plugin-api`, `packages/sdk`, `crates/docker`, `crates/git`, and `crates/pty` define ownership, not implemented features. `crates/secrets` and `crates/vault` are the two exceptions: both are implemented and shipped, and both are security boundaries rather than ordinary adapters.
 
 ## Frontend layers
 
@@ -14,12 +16,12 @@ The plugin API remains intentionally small in this release. Empty plugin and nat
 | `apps/desktop/src/components` | Presentational units: service list, service editor, project context, logs |
 | `apps/desktop/src/composables` | Behaviour shared by more than one view, such as the service workspace |
 | `apps/desktop/src/stores` | Pinia stores holding view-facing state and translating user intent into application-service calls |
-| `packages/core` | `ProjectService`, `ServiceCatalog`, `ServiceManager`, `SystemService`, `SettingsService`, the `NativeBridge` contract, and core commands |
+| `packages/core` | `ProjectService`, `ServiceCatalog`, `ServiceManager`, `SystemService`, `SettingsService`, `ApiCatalog`, `VaultCatalog`, the `NativeBridge` contract, core commands, and the pure SQL-analysis helpers in `database.ts` |
 | `packages/context` | Observable active-project/workbench state shared by commands and views |
 
 `NativeBridge` is the only abstraction that talks to Rust, and `apps/desktop/src/services/nativeBridge.ts` is the only module that calls `invoke`. Everything above it stays testable in Node, which is how `apps/desktop/src/stores/*.test.ts` exercise the stores against a fake bridge and a real `createWorkbench` instance.
 
-Three stores split the view state: `workbench` owns projects, services, and logs; `system` owns the process and port surfaces; `settings` owns the persisted preferences. `system` delegates all of its ordering, filtering, and tree building to pure helpers in `packages/core`, so the interesting logic is unit-tested without a DOM.
+Four stores split the view state: `workbench` owns projects, services, and logs; `system` owns the process and port surfaces; `settings` owns the persisted preferences; `vault` owns the unlocked vault's view state and is cleared on every lock path. `system` delegates all of its ordering, filtering, and tree building to pure helpers in `packages/core`, so the interesting logic is unit-tested without a DOM.
 
 ## System surfaces
 
@@ -56,6 +58,16 @@ Credentials never reach SQLite: a password goes to the OS credential store throu
 ## API workbench
 
 `ApiWorkbenchView` composes HTTP requests and drives them through the `utility.api.send` command, which is the only path that reaches the native `reqwest` client. Requests, headers, and bodies are templates: environment variables live in session state and are resolved just before sending, so saved rows in `api_requests` never hold a secret. Saved requests are grouped by `api_modules`, and recent-request history keeps a redacted URL (credentials stripped, token-like query values replaced) so the sidebar never echoes a secret back.
+
+## Password vault
+
+The vault is not a workbench. It is a separate security domain with its own encrypted database, its own key hierarchy, and a deny-by-default boundary around it. [vault-security.md](vault-security.md) is the authoritative document — threat model, file format, in-memory handling, locking, and what is explicitly *not* claimed — and it is kept deliberately separate from this file so that a claim about the vault has exactly one place to live.
+
+Three architectural facts matter here, because they are what the rest of the system has to respect:
+
+- **`VaultCatalog` is the only caller.** `crates/vault`'s `VaultService` is the front door and never hands out a `VaultKey`, a KEK, a raw record, or a database handle. `apps/desktop/src-tauri/src/vault.rs` is a thin command layer with no cryptography in it.
+- **The vault is not in the service container.** `createWorkbench` registers every other catalog, and deliberately not the vault, so a plugin or a future AI surface holding the container cannot resolve it. Exactly two commands exist: `vault.open` returns a navigation token rather than data, and `vault.lock` removes access.
+- **Nothing crosses into SQLite that is not already ciphertext.** The list projection omits passwords, notes, and custom field values, and a fetched item has its secrets stripped natively, so opening an item does not put a credential into the WebView at all. A secret arrives only from an explicit per-field reveal, and copying a password never returns it to the caller.
 
 ## Localization
 

@@ -239,11 +239,15 @@ mod tests {
     fn short_master_passwords_are_rejected_without_character_class_rules() {
         assert!(MasterPassword::new("short".into()).validate().is_err());
         assert!(
-            MasterPassword::new("elevenchars".into()).validate().is_err(),
+            MasterPassword::new("elevenchars".into())
+                .validate()
+                .is_err(),
             "11 characters is still below the floor"
         );
         assert!(
-            MasterPassword::new("twelvecharss".into()).validate().is_ok(),
+            MasterPassword::new("twelvecharss".into())
+                .validate()
+                .is_ok(),
             "12 lowercase characters is acceptable"
         );
     }

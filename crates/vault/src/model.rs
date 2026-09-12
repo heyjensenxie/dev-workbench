@@ -399,7 +399,12 @@ mod tests {
     #[test]
     fn normalize_trims_and_deduplicates_tags() {
         let mut candidate = payload();
-        candidate.tags = vec![" work ".into(), "work".into(), "".into(), " personal ".into()];
+        candidate.tags = vec![
+            " work ".into(),
+            "work".into(),
+            "".into(),
+            " personal ".into(),
+        ];
         let normalized = candidate.normalize().expect("normalize");
         assert_eq!(normalized.tags, vec!["work", "personal"]);
     }

@@ -39,10 +39,10 @@ use zeroize::Zeroizing;
 use crate::crypto;
 use crate::error::{VaultError, VaultResult};
 use crate::generator::GeneratorOptions;
-use crate::key::{self, MasterPassword, VaultKey};
 use crate::kdf::{self, KdfParams};
-use crate::lockout;
+use crate::key::{self, MasterPassword, VaultKey};
 use crate::locked::LockedBuffer;
+use crate::lockout;
 use crate::model::{
     ITEM_RECORD_VERSION, VAULT_FORMAT_VERSION, VaultBackupSummary, VaultItem, VaultItemPayload,
     VaultItemSummary, VaultKdfSummary, VaultStatus,
@@ -230,7 +230,11 @@ impl VaultService {
     /// Derives the KEK and unwraps the vault master key.
     /// `Ok(None)` means "this password is wrong"; `Err` means the header itself
     /// is unusable.
-    fn unwrap_with(&self, meta: &VaultMeta, password: &MasterPassword) -> VaultResult<Option<VaultKey>> {
+    fn unwrap_with(
+        &self,
+        meta: &VaultMeta,
+        password: &MasterPassword,
+    ) -> VaultResult<Option<VaultKey>> {
         let kek = meta.kdf.derive(password)?;
         match key::unwrap_key(&kek, &meta.wrapped_key) {
             Ok(key) => Ok(Some(key)),
@@ -318,7 +322,10 @@ impl VaultService {
         let now = crate::now_millis();
         let record = encrypt_payload(&key, id, &payload, existing.created_at, now)?;
         self.storage.put_record(&record).await?;
-        Ok(VaultItem::from_parts(id.to_owned(), existing.created_at, now, payload).without_secrets())
+        Ok(
+            VaultItem::from_parts(id.to_owned(), existing.created_at, now, payload)
+                .without_secrets(),
+        )
     }
 
     /// Toggles an item's favourite flag without moving any secret across the
@@ -340,7 +347,10 @@ impl VaultService {
         let now = crate::now_millis();
         let record = encrypt_payload(&key, id, &payload, existing.created_at, now)?;
         self.storage.put_record(&record).await?;
-        Ok(VaultItem::from_parts(id.to_owned(), existing.created_at, now, payload).without_secrets())
+        Ok(
+            VaultItem::from_parts(id.to_owned(), existing.created_at, now, payload)
+                .without_secrets(),
+        )
     }
 
     /// Reads exactly one secret field, on explicit request.
@@ -612,7 +622,9 @@ impl VaultService {
         let document: BackupDocument = serde_json::from_str(document)
             .map_err(|_| VaultError::Backup("backup file is not readable"))?;
         if document.magic != BACKUP_MAGIC || document.format_version != BACKUP_FORMAT_VERSION {
-            return Err(VaultError::Backup("backup file is not a Dev Workbench vault"));
+            return Err(VaultError::Backup(
+                "backup file is not a Dev Workbench vault",
+            ));
         }
 
         let meta = VaultMeta {
@@ -713,7 +725,12 @@ fn decrypt_payload(key: &VaultKey, record: &StoredRecord) -> VaultResult<VaultIt
     if record.record_version != ITEM_RECORD_VERSION {
         return Err(VaultError::Corrupt("unsupported record version"));
     }
-    let plaintext = crypto::open(key, &item_aad(&record.id), &record.nonce, &record.ciphertext)?;
+    let plaintext = crypto::open(
+        key,
+        &item_aad(&record.id),
+        &record.nonce,
+        &record.ciphertext,
+    )?;
     serde_json::from_slice(&plaintext)
         .map_err(|_| VaultError::Corrupt("vault item could not be decoded"))
 }

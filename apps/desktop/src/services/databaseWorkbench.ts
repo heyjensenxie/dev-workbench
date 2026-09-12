@@ -87,18 +87,18 @@ const tableIndexes: Record<string, IndexInfo[]> = {
 
 const fixtureRows: Record<string, Record<string, unknown>[]> = {
   sys_user: [
-    { id: 10001, name: 'Jensen', mobile: '138****1024', status: 1, created_at: '2026-08-22 09:14:05' },
-    { id: 10002, name: 'Lin', mobile: '139****7781', status: 1, created_at: '2026-08-21 17:32:44' },
-    { id: 10003, name: 'Mia', mobile: null, status: 0, created_at: '2026-08-17 11:06:19' },
-    { id: 10004, name: 'Noah', mobile: '186****9920', status: 1, created_at: '2026-08-14 15:45:03' },
+    { id: 10001, name: 'Ada', mobile: '138****0001', status: 1, created_at: '2026-08-22 09:14:05' },
+    { id: 10002, name: 'Grace', mobile: '139****0002', status: 1, created_at: '2026-08-21 17:32:44' },
+    { id: 10003, name: 'Linus', mobile: null, status: 0, created_at: '2026-08-17 11:06:19' },
+    { id: 10004, name: 'Margaret', mobile: '186****0003', status: 1, created_at: '2026-08-14 15:45:03' },
   ],
   mcp_servers: [
     { id: 'srv_01', name: 'Local tools', endpoint: 'http://localhost:8765/mcp', enabled: true, updated_at: '2026-08-20 13:22:10' },
     { id: 'srv_02', name: 'Docs search', endpoint: 'http://localhost:8770/mcp', enabled: false, updated_at: '2026-08-18 08:05:31' },
   ],
   projects: [
-    { id: 'p-001', name: 'dev-workbench', path: 'F:/projects/node/dev-workbench', updated_at: 1726461900 },
-    { id: 'p-002', name: 'mcp-conductor', path: 'F:/projects/node/mcp-conductor', updated_at: 1726321120 },
+    { id: 'p-001', name: 'example-app', path: '/home/dev/example-app', updated_at: 1726461900 },
+    { id: 'p-002', name: 'example-service', path: '/home/dev/example-service', updated_at: 1726321120 },
   ],
 }
 

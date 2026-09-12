@@ -431,10 +431,9 @@ pub fn run() {
             // workspace database, and is managed by its own service. It shares no
             // table, no connection, and no trust boundary with anything above.
             let vault_path = app_data.join("vault.db");
-            let vault_service = tauri::async_runtime::block_on(workbench_vault::VaultService::open(
-                &vault_path,
-            ))
-            .map_err(|error| Box::<dyn std::error::Error>::from(error.to_string()))?;
+            let vault_service =
+                tauri::async_runtime::block_on(workbench_vault::VaultService::open(&vault_path))
+                    .map_err(|error| Box::<dyn std::error::Error>::from(error.to_string()))?;
 
             app.manage(AppState {
                 database,

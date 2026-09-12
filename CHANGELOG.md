@@ -1,8 +1,16 @@
 # Changelog
 
-All notable changes are documented here.
+All notable changes are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Pre-1.0
+releases are marked with pre-release identifiers (`-alpha.N`) because the plugin
+and native boundaries described in [docs/architecture.md](docs/architecture.md)
+are still moving.
 
-## Unreleased
+## 0.1.0-alpha.2 - 2026-09-13
+
+The first public release. This section collects everything built on top of the
+`0.1.0-alpha.1` architecture foundations.
 
 ### Changed
 
@@ -61,6 +69,17 @@ All notable changes are documented here.
 - Log readers are aborted on stop instead of lingering on pipe handles inherited by surviving grandchild processes
 - The desktop route now selects the project named in `/projects/:id`
 - Replacing the application icon now actually changes the executable, window, and taskbar icon: `tauri-build` embeds `icons/icon.ico` without declaring it as a build input, so `build.rs` watches the icon directory and the Tauri configuration
+
+### Release preparation
+
+- `.github/` is no longer git-ignored. The CI workflow, the release workflow, the issue templates, and the Dependabot configuration were excluded from version control, so none of them would have existed on the public repository even though the README and `docs/development.md` linked to them
+- The migration test now derives its expected list from the migration table itself instead of a hard-coded copy, which had gone stale when `0005_database_workbench` was added; `cargo test --workspace` had been failing on `main`
+- The vault crate and the desktop backend are now `rustfmt`-clean and `clippy`-clean under `-D warnings`; `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings` had both been failing, which is exactly what CI runs
+- `LICENSE` no longer carries the Apache placeholder `[yyyy] [name of copyright owner]`
+- The database preview fixture no longer publishes the maintainer's machine layout or an unrelated private project name, and its demo rows use placeholder identities
+- The comment on the vault create screen no longer claims restore is reachable *only* there; it is available from the create screen, the lock screen, and the settings dialog, and the create screen is the one path that refuses to replace an existing vault
+- Both READMEs now carry the brand mark and a technical overview — what each technology choice is responsible for, how the dependency direction, the native command surface, process ownership, and the three storage locations actually work — and `docs/development.md` records which asset is the canonical logo and which copies must change with it
+- The vault backup section of `docs/vault-security.md` now describes the replacement behaviour that ships (settings dialog and lock screen replace, with a safety copy; the create screen refuses) instead of the earlier create-screen-only design, and its test count matches the suite
 
 ## 0.1.0-alpha.1
 

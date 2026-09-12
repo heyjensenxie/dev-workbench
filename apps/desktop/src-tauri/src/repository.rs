@@ -448,7 +448,7 @@ fn sanitize_api_request(request: &SavedApiRequest) -> Result<SavedApiRequest, Ap
         .filter(|body| !body.is_empty());
     if body
         .as_deref()
-        .map_or(false, |value| value.len() > 5 * 1024 * 1024)
+        .is_some_and(|value| value.len() > 5 * 1024 * 1024)
     {
         return Err(AppError::Validation(
             "API request body must be 5 MB or smaller".into(),
@@ -665,15 +665,17 @@ mod tests {
             .fetch_all(&pool)
             .await
             .unwrap();
-        assert_eq!(
-            applied,
-            vec![
-                "0001_initial",
-                "0002_service_metadata",
-                "0003_api_requests",
-                "0004_api_modules"
-            ]
-        );
+        // Derived from the migration table itself, so adding a migration cannot
+        // leave this assertion silently behind.
+        let expected: Vec<String> = {
+            let mut names: Vec<String> = MIGRATIONS
+                .iter()
+                .map(|(name, _)| (*name).to_owned())
+                .collect();
+            names.sort();
+            names
+        };
+        assert_eq!(applied, expected);
     }
 
     #[tokio::test]

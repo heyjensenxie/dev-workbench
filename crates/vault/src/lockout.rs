@@ -113,7 +113,10 @@ mod tests {
         // The whole point of allowing a high cap: even at the ceiling, the number
         // of guesses per day stays negligible.
         let per_day = 24 * 60 * 60 / MAX_LOCKOUT_SECONDS;
-        assert!(per_day <= 24, "capped lockout allows {per_day} guesses a day");
+        assert!(
+            per_day <= 24,
+            "capped lockout allows {per_day} guesses a day"
+        );
     }
 
     #[test]

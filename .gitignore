@@ -48,4 +48,8 @@ BOOTSTRAP.md
 .openhands/
 .zed/
 .devcontainer/
-.github/
+
+# `.github/` is deliberately NOT ignored: CI workflows, the release workflow,
+# issue templates, and Dependabot configuration are part of the public project
+# and are referenced by README and docs. Only local agent/IDE configuration is
+# kept out of the repository.

@@ -355,20 +355,28 @@ re-authentication, an explicit warning, and a second confirmation; V1 does not
 have one, and the destination path is normalised to the `.vaultbackup` extension
 so a plaintext-friendly extension cannot be chosen by accident.
 
-Import refuses to run when a vault already exists, so an accidental import can
-never overwrite live credentials. That is also why the restore action lives on the
-create-vault screen rather than beside Export in the settings dialog: the settings
-dialog is reachable only when a vault is already unlocked, so a button there could
-never succeed. A restored vault is ciphertext, so it arrives **locked** and asks
-for the master password that protected that backup.
+Import **replaces** an existing vault, but only from the surfaces where a user with
+a vault actually is: the settings dialog and the lock screen. Both pass
+`replaceExisting = true`, and before anything is written the native layer stores a
+timestamped safety copy of the current vault and returns its path, so choosing the
+wrong file is recoverable rather than final. The create screen is the exception —
+it exists precisely because no vault is here, so it passes `replaceExisting = false`
+and refuses rather than replaces if one appeared in the meantime.
+
+The create screen is no longer the *only* place restore can be reached. It was
+originally, because the rule was "import only when no vault exists" — and that rule
+made the feature invisible to exactly the people who need it, since a user who
+already has a vault never sees the create screen. A restored vault is ciphertext, so
+it arrives **locked** and asks for the master password that protected that backup.
 
 Import also **validates before writing anything**: an unsupported KDF, a salt that
 is too short, a wrapped key that is not exactly a key plus an authentication tag,
 or a record whose nonce is not 192 bits is rejected while the destination is still
-empty. Without that check, a corrupt or crafted backup would be written
-successfully and produce a vault that can never be opened — discovering the problem
-at the moment the user is trying to recover from a disaster. A refused import
-leaves the location usable, so the right file can simply be chosen next.
+empty — and, when replacing, before the existing vault is touched. Without that
+check, a corrupt or crafted backup would be written successfully and produce a vault
+that can never be opened, discovered at the moment the user is trying to recover
+from a disaster. A refused import leaves the location usable, so the right file can
+simply be chosen next.
 
 ## 9. What is deliberately not claimed
 
@@ -458,7 +466,7 @@ the cheap test-only KDF parameters.
 Run them with:
 
 ```bash
-cargo test -p workbench-vault     # 114 tests: crypto, KDF, locked memory, session, and the security suite
+cargo test -p workbench-vault     # 144 tests: crypto, KDF, locked memory, session, and the security suite
 cargo test -p dev-workbench       # native command-layer unit tests
 pnpm test                         # shared, core, and UI-store tests
 ```

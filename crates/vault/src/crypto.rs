@@ -110,7 +110,9 @@ mod tests {
         let secret = b"correct-horse-battery-staple";
         let (nonce, ciphertext) = seal(&key(), b"item:1", secret).expect("seal");
         assert!(
-            !ciphertext.windows(secret.len()).any(|window| window == secret),
+            !ciphertext
+                .windows(secret.len())
+                .any(|window| window == secret),
             "plaintext must not appear anywhere in the ciphertext"
         );
         assert!(!nonce.windows(secret.len()).any(|window| window == secret));
@@ -123,7 +125,10 @@ mod tests {
             let mut modified = ciphertext.clone();
             modified[index] ^= 0x01;
             assert!(
-                matches!(open(&key(), b"item:1", &nonce, &modified), Err(VaultError::Tampered)),
+                matches!(
+                    open(&key(), b"item:1", &nonce, &modified),
+                    Err(VaultError::Tampered)
+                ),
                 "bit flip at byte {index} must be rejected"
             );
         }

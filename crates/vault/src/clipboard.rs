@@ -32,7 +32,6 @@ mod platform {
     use std::ptr;
     use std::slice;
     use std::time::Duration;
-    use zeroize::Zeroize;
     use windows_sys::Win32::Foundation::HGLOBAL;
     use windows_sys::Win32::System::DataExchange::{
         CloseClipboard, EmptyClipboard, GetClipboardData, IsClipboardFormatAvailable,
@@ -41,6 +40,7 @@ mod platform {
     use windows_sys::Win32::System::Memory::{
         GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock,
     };
+    use zeroize::Zeroize;
 
     /// `CF_UNICODETEXT` is a stable Win32 ABI constant (13). `windows-sys`
     /// exposes it only through the OLE/COM module, which this crate does not

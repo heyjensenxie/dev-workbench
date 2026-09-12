@@ -732,7 +732,7 @@ dependencies = [
 
 [[package]]
 name = "dev-workbench"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "dirs",
  "reqwest 0.12.28",
@@ -5743,15 +5743,15 @@ checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
 name = "workbench-docker"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 
 [[package]]
 name = "workbench-git"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 
 [[package]]
 name = "workbench-network"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "serde",
  "sysinfo",
@@ -5760,7 +5760,7 @@ dependencies = [
 
 [[package]]
 name = "workbench-process"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "serde",
  "thiserror 2.0.20",
@@ -5769,18 +5769,18 @@ dependencies = [
 
 [[package]]
 name = "workbench-pty"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 
 [[package]]
 name = "workbench-secrets"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "windows-sys 0.61.2",
 ]
 
 [[package]]
 name = "workbench-system"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "serde",
  "sysinfo",
@@ -5788,7 +5788,7 @@ dependencies = [
 
 [[package]]
 name = "workbench-vault"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "argon2",
  "base64 0.22.1",

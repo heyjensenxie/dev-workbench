@@ -580,11 +580,11 @@ onUnmounted(() => {
         </form>
 
         <!--
-          Restoring a backup lives here rather than beside Export in the settings
-          dialog, because import is only permitted while no vault exists — that is
-          what makes overwriting live credentials impossible. The settings dialog
-          is reachable only when a vault is already unlocked, so a button there
-          could never succeed.
+          The create screen also offers restore, because a user who has a backup
+          and no vault is exactly who lands here, and before restore was reachable
+          from the settings dialog and the lock screen this was the only place it
+          could be found. It passes `replaceExisting = false`: nothing should be
+          replaced on the screen that exists precisely because nothing is here.
         -->
         <div class="vault-restore">
           <div v-if="!confirmRestore">

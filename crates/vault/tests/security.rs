@@ -134,7 +134,9 @@ fn payload(title: &str, password: &str) -> VaultItemPayload {
 /// Creates an initialised, unlocked vault holding one marker item.
 async fn seeded_vault(label: &str) -> (TempVault, VaultService) {
     let temp = TempVault::new(label);
-    let service = VaultService::open(&temp.db_path()).await.expect("open vault");
+    let service = VaultService::open(&temp.db_path())
+        .await
+        .expect("open vault");
     service
         .create_with_params(master(MASTER_PASSWORD), KdfParams::insecure_for_tests())
         .await
@@ -424,7 +426,10 @@ async fn favouriting_an_item_does_not_require_its_password() {
     let items = service.list_items().await.expect("list");
     let id = items[0].id.clone();
 
-    let updated = service.set_favorite(&id, false).await.expect("favorite off");
+    let updated = service
+        .set_favorite(&id, false)
+        .await
+        .expect("favorite off");
     assert!(!updated.favorite);
     assert!(updated.password.is_none(), "no secret comes back either");
 
@@ -547,7 +552,10 @@ async fn a_modified_nonce_cannot_be_decrypted() {
         .list_items()
         .await
         .expect_err("a modified nonce must not decrypt");
-    assert!(matches!(error, VaultError::Tampered | VaultError::Corrupt(_)));
+    assert!(matches!(
+        error,
+        VaultError::Tampered | VaultError::Corrupt(_)
+    ));
     drop(temp);
 }
 
@@ -564,7 +572,10 @@ async fn a_modified_authentication_tag_cannot_be_decrypted() {
     .await;
 
     let service = VaultService::open(&temp.db_path()).await.expect("reopen");
-    service.unlock(master(MASTER_PASSWORD)).await.expect("unlock");
+    service
+        .unlock(master(MASTER_PASSWORD))
+        .await
+        .expect("unlock");
     assert!(service.list_items().await.is_err());
     drop(temp);
 }
@@ -597,12 +608,18 @@ async fn a_record_cannot_be_relocated_to_a_different_item_id() {
     pool.close().await;
 
     let service = VaultService::open(&temp.db_path()).await.expect("reopen");
-    service.unlock(master(MASTER_PASSWORD)).await.expect("unlock");
+    service
+        .unlock(master(MASTER_PASSWORD))
+        .await
+        .expect("unlock");
     let error = service
         .list_items()
         .await
         .expect_err("a relocated record must not authenticate");
-    assert!(matches!(error, VaultError::Tampered | VaultError::Corrupt(_)));
+    assert!(matches!(
+        error,
+        VaultError::Tampered | VaultError::Corrupt(_)
+    ));
     drop(temp);
 }
 
@@ -780,7 +797,10 @@ async fn locking_clears_the_in_memory_key_and_refuses_reads() {
 
     let status = service.status().await.expect("status");
     assert!(!status.unlocked);
-    assert!(matches!(service.list_items().await, Err(VaultError::Locked)));
+    assert!(matches!(
+        service.list_items().await,
+        Err(VaultError::Locked)
+    ));
     assert!(matches!(
         service.get_item("anything").await,
         Err(VaultError::Locked)
@@ -807,7 +827,10 @@ async fn the_idle_timeout_locks_the_vault_and_drops_its_key() {
 
     assert!(service.sweep_auto_lock().await, "the timeout must lock");
     assert!(!service.status().await.expect("status").unlocked);
-    assert!(matches!(service.list_items().await, Err(VaultError::Locked)));
+    assert!(matches!(
+        service.list_items().await,
+        Err(VaultError::Locked)
+    ));
     drop(temp);
 }
 
@@ -892,7 +915,10 @@ async fn a_backup_is_encrypted_and_restores_the_vault() {
     let restored = VaultService::open(&restored_dir.db_path())
         .await
         .expect("open restored");
-    let summary = restored.import_backup(&backup, false).await.expect("import");
+    let summary = restored
+        .import_backup(&backup, false)
+        .await
+        .expect("import");
     assert_eq!(summary.item_count, 1);
 
     restored
@@ -984,7 +1010,10 @@ async fn the_list_projection_never_carries_a_password_or_note() {
     let items = service.list_items().await.expect("list");
     let encoded = serde_json::to_string(&items).expect("serialize");
 
-    assert!(!encoded.contains(PASSWORD), "the list must not carry passwords");
+    assert!(
+        !encoded.contains(PASSWORD),
+        "the list must not carry passwords"
+    );
     assert!(!encoded.contains(NOTES), "the list must not carry notes");
     assert!(
         !encoded.contains(FIELD_VALUE),
@@ -1099,7 +1128,10 @@ async fn destroying_the_vault_removes_every_credential_and_the_key() {
     assert!(status.kdf.is_none(), "the KDF parameters go with it");
 
     // Nothing is readable, and the old master password no longer opens anything.
-    assert!(matches!(service.list_items().await, Err(VaultError::Locked)));
+    assert!(matches!(
+        service.list_items().await,
+        Err(VaultError::Locked)
+    ));
     assert!(matches!(
         service.unlock(master(MASTER_PASSWORD)).await,
         Err(VaultError::NotInitialized)
@@ -1117,10 +1149,7 @@ async fn a_destroyed_vault_can_be_replaced_by_a_different_one() {
     service.destroy().await.expect("destroy");
 
     service
-        .create_with_params(
-            master(NEW_MASTER_PASSWORD),
-            KdfParams::insecure_for_tests(),
-        )
+        .create_with_params(master(NEW_MASTER_PASSWORD), KdfParams::insecure_for_tests())
         .await
         .expect("create a replacement vault");
 
@@ -1217,7 +1246,12 @@ async fn importing_over_an_existing_vault_requires_the_flag() {
     assert!(matches!(error, VaultError::AlreadyInitialized));
 
     // And the existing vault is untouched.
-    assert_eq!(password_of(&service, &service.list_items().await.expect("list")[0].id).await.as_deref(), Some(PASSWORD));
+    assert_eq!(
+        password_of(&service, &service.list_items().await.expect("list")[0].id)
+            .await
+            .as_deref(),
+        Some(PASSWORD)
+    );
     drop(temp);
 }
 
@@ -1231,7 +1265,9 @@ async fn a_flagged_import_replaces_the_existing_vault() {
 
     // Build a second, independent vault and take its backup.
     let donor_temp = TempVault::new("replace-donor");
-    let donor = VaultService::open(&donor_temp.db_path()).await.expect("open");
+    let donor = VaultService::open(&donor_temp.db_path())
+        .await
+        .expect("open");
     donor
         .create_with_params(master(NEW_MASTER_PASSWORD), KdfParams::insecure_for_tests())
         .await
@@ -1261,7 +1297,10 @@ async fn a_flagged_import_replaces_the_existing_vault() {
         .expect("the imported vault opens with its own password");
     let items = service.list_items().await.expect("list");
     assert_eq!(items[0].title, "Donor");
-    assert_eq!(password_of(&service, &items[0].id).await.as_deref(), Some(SECOND_PASSWORD));
+    assert_eq!(
+        password_of(&service, &items[0].id).await.as_deref(),
+        Some(SECOND_PASSWORD)
+    );
 
     // The replaced vault is gone from disk, not merely shadowed.
     temp.assert_absent(PASSWORD, "a replaced password");
@@ -1354,7 +1393,10 @@ async fn the_threshold_failure_locks_the_vault_for_five_minutes() {
 
     let status = service.status().await.expect("status");
     assert!(status.locked_until.is_some());
-    assert_eq!(status.failed_attempts, workbench_vault::lockout::LOCKOUT_THRESHOLD);
+    assert_eq!(
+        status.failed_attempts,
+        workbench_vault::lockout::LOCKOUT_THRESHOLD
+    );
     drop(temp);
 }
 
@@ -1386,7 +1428,10 @@ async fn the_lockout_survives_restarting_the_application() {
 
     let reopened = VaultService::open(&temp.db_path()).await.expect("reopen");
     let status = reopened.status().await.expect("status");
-    assert_eq!(status.failed_attempts, workbench_vault::lockout::LOCKOUT_THRESHOLD);
+    assert_eq!(
+        status.failed_attempts,
+        workbench_vault::lockout::LOCKOUT_THRESHOLD
+    );
     assert!(status.locked_until.is_some(), "the lockout must persist");
     assert!(
         matches!(
@@ -1411,7 +1456,10 @@ async fn a_successful_unlock_clears_the_throttle() {
         .expect("the correct password still works below the threshold");
 
     let status = service.status().await.expect("status");
-    assert_eq!(status.failed_attempts, 0, "a success must reset the counter");
+    assert_eq!(
+        status.failed_attempts, 0,
+        "a success must reset the counter"
+    );
     assert!(status.locked_until.is_none());
     drop(temp);
 }
@@ -1455,8 +1503,7 @@ async fn the_lockout_never_exceeds_its_ceiling() {
     for _ in 0..12 {
         fail_unlock(&service, workbench_vault::lockout::LOCKOUT_THRESHOLD).await;
         expire_lockout(&temp.db_path()).await;
-        if let Err(VaultError::LockedOut { seconds }) =
-            service.unlock(master("still-wrong")).await
+        if let Err(VaultError::LockedOut { seconds }) = service.unlock(master("still-wrong")).await
         {
             last = seconds;
         }
@@ -1481,7 +1528,10 @@ async fn changing_the_master_password_shares_the_throttle() {
     fail_unlock(&service, workbench_vault::lockout::LOCKOUT_THRESHOLD - 1).await;
 
     let error = service
-        .change_master_password(&master("wrong-current-password"), &master(NEW_MASTER_PASSWORD))
+        .change_master_password(
+            &master("wrong-current-password"),
+            &master(NEW_MASTER_PASSWORD),
+        )
         .await
         .expect_err("a wrong current password must fail");
     assert!(
@@ -1537,9 +1587,15 @@ async fn recalibrating_strengthens_the_parameters_without_touching_a_record() {
     let (temp, service) = seeded_vault("recalibrate").await;
     let before_rows = stored_rows(&temp.db_path()).await;
     let before_kdf = service.status().await.expect("status").kdf.expect("kdf");
-    assert!(!before_kdf.meets_current_floor, "the fixture starts below the floor");
+    assert!(
+        !before_kdf.meets_current_floor,
+        "the fixture starts below the floor"
+    );
 
-    let after = service.recalibrate(&master(MASTER_PASSWORD)).await.expect("recalibrate");
+    let after = service
+        .recalibrate(&master(MASTER_PASSWORD))
+        .await
+        .expect("recalibrate");
     let after_kdf = after.kdf.expect("kdf");
 
     assert!(after_kdf.meets_current_floor);
@@ -1555,7 +1611,10 @@ async fn recalibrating_strengthens_the_parameters_without_touching_a_record() {
     for (before, after) in before_rows.iter().zip(after_rows.iter()) {
         assert_eq!(before.id, after.id);
         assert_eq!(before.nonce, after.nonce, "a record was re-encrypted");
-        assert_eq!(before.ciphertext, after.ciphertext, "a record was rewritten");
+        assert_eq!(
+            before.ciphertext, after.ciphertext,
+            "a record was rewritten"
+        );
         assert_eq!(before.updated_at, after.updated_at);
     }
     drop(temp);
@@ -1566,7 +1625,10 @@ async fn a_recalibrated_vault_still_opens_with_the_same_password_and_data() {
     let (temp, service) = seeded_vault("recalibrate-unlock").await;
     let id = service.list_items().await.expect("list")[0].id.clone();
 
-    service.recalibrate(&master(MASTER_PASSWORD)).await.expect("recalibrate");
+    service
+        .recalibrate(&master(MASTER_PASSWORD))
+        .await
+        .expect("recalibrate");
 
     service.lock().await;
     service
@@ -1594,7 +1656,10 @@ async fn recalibrating_requires_the_master_password() {
     assert!(matches!(error, VaultError::IncorrectMasterPassword));
     // And nothing was written: the original password still works.
     service.lock().await;
-    service.unlock(master(MASTER_PASSWORD)).await.expect("unlock");
+    service
+        .unlock(master(MASTER_PASSWORD))
+        .await
+        .expect("unlock");
     drop(temp);
 }
 

@@ -29,14 +29,12 @@
 use std::path::Path;
 use std::time::Duration;
 
-use sqlx::sqlite::{
-    SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous,
-};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 use sqlx::{Row, SqlitePool};
 
 use crate::error::{VaultError, VaultResult};
-use crate::key::WrappedKey;
 use crate::kdf::KdfParams;
+use crate::key::WrappedKey;
 
 /// One encrypted record as it exists on disk. Field names here mirror the
 /// physical columns; none of them is a secret.
@@ -117,7 +115,6 @@ pub struct UnlockThrottle {
     /// Milliseconds since the Unix epoch, or `None` when not locked out.
     pub locked_until: Option<i64>,
 }
-
 
 pub struct VaultStorage {
     pool: SqlitePool,
@@ -395,11 +392,7 @@ impl VaultStorage {
     /// Used by master-password changes and by vault-key rotation, both of which
     /// must never be observable half-applied: a crash midway has to leave either
     /// the old key or the new key consistently in force.
-    pub async fn replace_all(
-        &self,
-        meta: &VaultMeta,
-        records: &[StoredRecord],
-    ) -> VaultResult<()> {
+    pub async fn replace_all(&self, meta: &VaultMeta, records: &[StoredRecord]) -> VaultResult<()> {
         let mut transaction = self.pool.begin().await.map_err(VaultError::Storage)?;
 
         sqlx::query("DELETE FROM vault_items")
@@ -445,21 +438,40 @@ impl VaultStorage {
 
 fn meta_from_row(row: &sqlx::sqlite::SqliteRow) -> VaultResult<VaultMeta> {
     Ok(VaultMeta {
-        format_version: as_u32(row.try_get::<i64, _>("format_version").map_err(VaultError::Storage)?),
+        format_version: as_u32(
+            row.try_get::<i64, _>("format_version")
+                .map_err(VaultError::Storage)?,
+        ),
         kdf: KdfParams {
             algorithm: row.try_get("kdf_algorithm").map_err(VaultError::Storage)?,
-            version: as_u32(row.try_get::<i64, _>("kdf_version").map_err(VaultError::Storage)?),
+            version: as_u32(
+                row.try_get::<i64, _>("kdf_version")
+                    .map_err(VaultError::Storage)?,
+            ),
             salt: row.try_get("kdf_salt").map_err(VaultError::Storage)?,
-            memory_kib: as_u32(row.try_get::<i64, _>("kdf_memory_kib").map_err(VaultError::Storage)?),
-            time_cost: as_u32(row.try_get::<i64, _>("kdf_time_cost").map_err(VaultError::Storage)?),
-            parallelism: as_u32(row.try_get::<i64, _>("kdf_parallelism").map_err(VaultError::Storage)?),
+            memory_kib: as_u32(
+                row.try_get::<i64, _>("kdf_memory_kib")
+                    .map_err(VaultError::Storage)?,
+            ),
+            time_cost: as_u32(
+                row.try_get::<i64, _>("kdf_time_cost")
+                    .map_err(VaultError::Storage)?,
+            ),
+            parallelism: as_u32(
+                row.try_get::<i64, _>("kdf_parallelism")
+                    .map_err(VaultError::Storage)?,
+            ),
             output_len: row
                 .try_get::<i64, _>("kdf_output_len")
                 .map_err(VaultError::Storage)? as usize,
         },
         wrapped_key: WrappedKey {
-            nonce: row.try_get("wrapped_key_nonce").map_err(VaultError::Storage)?,
-            ciphertext: row.try_get("wrapped_key_blob").map_err(VaultError::Storage)?,
+            nonce: row
+                .try_get("wrapped_key_nonce")
+                .map_err(VaultError::Storage)?,
+            ciphertext: row
+                .try_get("wrapped_key_blob")
+                .map_err(VaultError::Storage)?,
         },
         created_at: row.try_get("created_at").map_err(VaultError::Storage)?,
         updated_at: row.try_get("updated_at").map_err(VaultError::Storage)?,

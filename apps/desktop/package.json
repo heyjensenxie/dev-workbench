@@ -1,6 +1,6 @@
 {
   "name": "@dev-workbench/desktop",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "private": true,
   "type": "module",
   "scripts": {"dev":"vite","build":"vue-tsc --noEmit && vite build","typecheck":"vue-tsc --noEmit","test":"vitest run","tauri":"tauri"},

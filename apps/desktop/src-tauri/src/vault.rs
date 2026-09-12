@@ -29,7 +29,10 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, State};
 use workbench_vault::locked::LockedBuffer;
 use workbench_vault::service::generator_options_from_value;
-use workbench_vault::{MasterPassword, VaultBackupSummary, VaultItem, VaultItemPayload, VaultItemSummary, VaultService, VaultStatus};
+use workbench_vault::{
+    MasterPassword, VaultBackupSummary, VaultItem, VaultItemPayload, VaultItemSummary,
+    VaultService, VaultStatus,
+};
 
 use crate::error::AppError;
 
@@ -111,10 +114,7 @@ pub async fn vault_unlock(
 }
 
 #[tauri::command]
-pub async fn vault_lock(
-    app: AppHandle,
-    state: State<'_, VaultState>,
-) -> Result<bool, AppError> {
+pub async fn vault_lock(app: AppHandle, state: State<'_, VaultState>) -> Result<bool, AppError> {
     let locked = state.service.lock().await;
     if locked {
         announce_lock(&app, lock_reason::MANUAL);
@@ -183,10 +183,7 @@ pub async fn vault_delete_item(id: String, state: State<'_, VaultState>) -> Resu
 /// for why a master-password prompt here would be theatre rather than protection.
 /// The user-facing guard is a typed confirmation in the UI.
 #[tauri::command]
-pub async fn vault_destroy(
-    app: AppHandle,
-    state: State<'_, VaultState>,
-) -> Result<(), AppError> {
+pub async fn vault_destroy(app: AppHandle, state: State<'_, VaultState>) -> Result<(), AppError> {
     state.service.destroy().await?;
     // Nothing of the vault should outlive it, including a copied password.
     let _ = workbench_vault::clipboard::clear();
@@ -321,7 +318,10 @@ pub async fn vault_import_backup(
         safety_backup = Some(target.to_string_lossy().into_owned());
     }
 
-    let summary = state.service.import_backup(&document, replace_existing).await?;
+    let summary = state
+        .service
+        .import_backup(&document, replace_existing)
+        .await?;
     Ok(VaultImportOutcome {
         item_count: summary.item_count,
         format_version: summary.format_version,
@@ -335,9 +335,10 @@ pub async fn vault_import_backup(
 /// whole point is that a previous state survives a later mistake, and "the one
 /// safety copy" would be clobbered by the next replace.
 fn safety_backup_path(data_dir: &Path) -> PathBuf {
-    data_dir
-        .join("backups")
-        .join(format!("vault-before-restore-{}.vaultbackup", crate::models::now_millis()))
+    data_dir.join("backups").join(format!(
+        "vault-before-restore-{}.vaultbackup",
+        crate::models::now_millis()
+    ))
 }
 
 /// Normalises a backup destination to the vault's own extension. Never writes a
@@ -464,7 +465,8 @@ pub async fn vault_open_url(url: String) -> Result<(), AppError> {
         ));
     }
     match scheme_of(url) {
-        Some(scheme) if scheme.eq_ignore_ascii_case("https") || scheme.eq_ignore_ascii_case("http") => {}
+        Some(scheme)
+            if scheme.eq_ignore_ascii_case("https") || scheme.eq_ignore_ascii_case("http") => {}
         Some(scheme) => {
             return Err(AppError::Validation(format!(
                 "refusing to open a '{scheme}' URL; only http and https are allowed"

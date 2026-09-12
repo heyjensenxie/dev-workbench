@@ -358,7 +358,11 @@ mod tests {
         // capture unrelated memory and the wipe would corrupt it.
         let locked = LockedBytes::new([1u8; 32]);
         let address = locked.0.ptr.as_ptr() as usize;
-        assert_eq!(address % LOCKED_EXTENT, 0, "allocation must be page-aligned");
+        assert_eq!(
+            address % LOCKED_EXTENT,
+            0,
+            "allocation must be page-aligned"
+        );
         assert_eq!(locked.0.extent % LOCKED_EXTENT, 0);
     }
 

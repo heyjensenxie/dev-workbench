@@ -28,14 +28,16 @@ pnpm dev:web    # browser-only UI, no native shell
 | `packages/shared` | Cross-boundary models, validation rules, and structured errors |
 | `packages/command` | Command contracts, registry, execution, and fuzzy matching |
 | `packages/context` | Observable workbench/project context |
-| `packages/core` | Application services (`ProjectService`, `ServiceCatalog`, `ServiceManager`, `SystemService`, `SettingsService`), pure system helpers, the `NativeBridge` interface, and core command registration |
+| `packages/core` | Application services (`ProjectService`, `ServiceCatalog`, `ServiceManager`, `SystemService`, `SettingsService`, `ApiCatalog`, `VaultCatalog`), pure system and SQL-analysis helpers, the `NativeBridge` interface, and core command registration |
 | `packages/ui` | Shared design tokens and future reusable primitives |
 | `packages/plugin-api`, `packages/sdk` | Extension contracts kept deliberately small |
 | `crates/process` | Managed child processes, process-tree termination, and log streaming |
 | `crates/system`, `crates/network` | OS-facing process and port adapters |
-| `crates/docker`, `crates/git`, `crates/secrets`, `crates/pty` | Declared native boundaries with no implementation yet |
+| `crates/secrets` | OS credential-store boundary — implemented on Windows (Credential Manager), not yet on Linux or macOS |
+| `crates/vault` | Password vault: cryptography, Argon2id parameters, page-locked memory, session, storage, and the threat-model suite |
+| `crates/docker`, `crates/git`, `crates/pty` | Declared native boundaries with no implementation yet |
 | `plugins/*` | Reserved plugin packages with no implementation yet |
-| `docs/` | Architecture and development documentation |
+| `docs/` | Architecture, development, and vault security documentation |
 
 ## Working rules
 
@@ -45,22 +47,24 @@ pnpm dev:web    # browser-only UI, no native shell
 - Validate a service in `packages/shared` for immediate UI feedback *and* in the Rust repository before persisting, so the database cannot be corrupted by a caller that skips the UI.
 - Service working directories may be absolute or project-relative; the native runtime resolves relative and omitted directories against the owning project root before spawning.
 - Keep operating-system differences inside the native adapter crates.
-- Store only non-secret data in SQLite. Credentials and API keys belong to the OS keychain through `crates/secrets`.
-- Treat `plugins/*`, `packages/plugin-api`, `packages/sdk`, and `crates/{docker,git,pty,secrets}` as ownership boundaries rather than shipped features, and do not describe them as implemented.
+- Store only non-secret data in SQLite. Credentials and API keys belong to the OS keychain through `crates/secrets`; the password vault keeps its own encrypted database and must not be reachable from the service container.
+- Treat `plugins/*`, `packages/plugin-api`, `packages/sdk`, and `crates/{docker,git,pty}` as ownership boundaries rather than shipped features, and do not describe them as implemented. `crates/secrets` and `crates/vault` are the exceptions: both are implemented, and both are security boundaries that need a deliberate design before they gain a caller or a capability.
 
 ## Tests
 
-Vitest covers the TypeScript workspace; every package with a `test` script is picked up by `pnpm test`.
+Vitest covers the TypeScript workspace; every package with a `test` script is picked up by `pnpm test` (223 cases today).
 
 | Suite | Covers |
 |---|---|
-| `packages/shared` | Service validation rules, settings parsing, formatting helpers, path handling, structured errors |
+| `packages/shared` | Service validation rules, settings parsing, formatting helpers, path handling, structured errors, vault types, the URL scheme allow-list, and password strength and search |
 | `packages/command` | Registry, execution, and fuzzy matching |
 | `packages/context` | Observable context state |
-| `packages/core` | Dependency ordering, batch start/stop semantics, catalog persistence, validation, process/port filtering and tree ordering, settings parsing, SQL script splitting and destructive-statement detection |
-| `apps/desktop` | The workbench and system stores against a fake bridge and a real `createWorkbench` instance, the database workbench service and its locale-neutral runtime messages, and i18n catalog parity |
+| `packages/core` | Dependency ordering, batch start/stop semantics, catalog persistence, validation, process/port filtering and tree ordering, settings parsing, SQL script splitting and destructive-statement detection, and vault isolation (no command, context, plugin, or AI path can reach a secret) |
+| `apps/desktop` | The workbench and system stores against a fake bridge and a real `createWorkbench` instance, the database workbench service and its locale-neutral runtime messages, the vault store's state clearing on every lock path, the utility tools, and i18n catalog parity |
 
-Rust tests live next to the code they cover: `manifest` and `scanner` parse fixtures written to a temporary directory, `repository` exercises migrations and CRUD against a temporary SQLite file, and the `process`, `system`, and `network` crates spawn real processes or parse recorded output.
+Rust tests live next to the code they cover (196 cases today): `manifest` and `scanner` parse fixtures written to a temporary directory, `repository` exercises migrations and CRUD against a temporary SQLite file, the `process`, `system`, and `network` crates spawn real processes or parse recorded output, and `apps/desktop/src-tauri/src/{api,vault}.rs` cover the command layer's validation (URL schemes, backup extension normalisation).
+
+`crates/vault` carries 144 of them. Its unit tests cover the AEAD boundary, Argon2id calibration, locked memory, the session, the generator, the model's redacted `Debug` implementations, and the unlock throttle; `crates/vault/tests/security.rs` is written against the threat model rather than the implementation, and [vault-security.md §10](vault-security.md#10-automated-security-tests) maps each guarantee to the test that enforces it.
 
 `crates/system` cannot verify cross-process termination inside a restricted sandbox that denies opening processes it did not create; the test reports `SKIPPED` in that case instead of failing the suite.
 
@@ -82,6 +86,12 @@ CI (`.github/workflows/ci.yml`) runs the frontend checks plus `cargo fmt`, `carg
 
 - The SQLite database is created under the platform-specific Tauri application data directory; the schema is applied from `apps/desktop/src-tauri/migrations/` when the connection opens.
 - `apps/desktop/src-tauri/gen/schemas` and `apps/desktop/dist` are generated and ignored by Git.
+
+## Brand assets
+
+`apps/desktop/src/assets/logo.png` is the canonical brand mark: the sidebar renders it, and `README.md` / `README.en.md` embed the same file so the public page cannot drift from the application. It is byte-identical to `apps/desktop/src-tauri/icons/128x128.png`, which `tauri-build` uses for the window and installer icons — change both together, and keep the alpha channel, because the mark is displayed on both light and dark backgrounds.
+
+`apps/desktop/public/favicon.png` and `src-tauri/icons/icon.ico` / `icon.icns` are generated from the same artwork at smaller and platform-specific sizes. `build.rs` watches the icon directory, so replacing an icon actually reaches the executable and the taskbar.
 
 ## Troubleshooting
 

@@ -78,11 +78,7 @@ pub struct KdfParams {
 
 impl KdfParams {
     /// Builds Argon2id parameters with a freshly generated salt.
-    pub fn new(
-        memory_kib: u32,
-        time_cost: u32,
-        parallelism: u32,
-    ) -> VaultResult<Self> {
+    pub fn new(memory_kib: u32, time_cost: u32, parallelism: u32) -> VaultResult<Self> {
         let mut salt = vec![0u8; SALT_LEN];
         OsRng.fill_bytes(&mut salt);
         Self::with_salt(memory_kib, time_cost, parallelism, salt)
@@ -476,7 +472,9 @@ mod tests {
 
     #[test]
     fn recalibrating_keeps_the_configuration_usable() {
-        let recalibrated = KdfParams::insecure_for_tests().recalibrated().expect("recalibrate");
+        let recalibrated = KdfParams::insecure_for_tests()
+            .recalibrated()
+            .expect("recalibrate");
         assert!(recalibrated.derive(&password()).is_ok());
         // The parameters must round-trip through the header unchanged.
         let encoded = serde_json::to_string(&recalibrated).expect("serialize");

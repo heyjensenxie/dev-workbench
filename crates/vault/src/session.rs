@@ -76,7 +76,8 @@ impl VaultSession {
 
     /// Marks user activity, pushing the idle deadline out.
     pub fn touch(&self) {
-        self.last_activity_ms.store(self.now_ms(), Ordering::Relaxed);
+        self.last_activity_ms
+            .store(self.now_ms(), Ordering::Relaxed);
     }
 
     pub fn idle_millis(&self) -> u64 {
