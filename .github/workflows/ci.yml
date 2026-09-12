@@ -22,7 +22,7 @@ jobs:
     name: Frontend (typecheck, test, build)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v4
         with:
@@ -49,7 +49,7 @@ jobs:
     name: Rust (fmt, clippy, test)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Tauri 2 system dependencies, per https://v2.tauri.app/start/prerequisites/
       - name: Install Linux system dependencies
