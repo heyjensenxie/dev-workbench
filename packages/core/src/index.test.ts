@@ -1,6 +1,6 @@
 import { ContextStore } from '@dev-workbench/context'
 import { AppError } from '@dev-workbench/shared'
-import type { DevService, Project, ProjectContext, ServiceState, SuggestedService } from '@dev-workbench/shared'
+import type { ApiModule, DevService, Project, ProjectContext, SavedApiRequest, ServiceState, SuggestedService } from '@dev-workbench/shared'
 import { describe, expect, it, vi } from 'vitest'
 import {
   createWorkbench,
@@ -60,6 +60,13 @@ function createFakeBridge(overrides: Partial<NativeBridge> = {}): NativeBridge {
     killPort: vi.fn(async () => undefined),
     getSettings: vi.fn(async () => ({}) as Record<string, unknown>),
     setSetting: vi.fn(async () => undefined),
+    httpRequest: vi.fn(async () => ({ status: 200, statusText: 'OK', headers: {}, body: '', durationMs: 1, truncated: false })),
+    listApiModules: vi.fn(async () => [] as ApiModule[]),
+    saveApiModule: vi.fn(async (module: ApiModule) => module),
+    deleteApiModule: vi.fn(async () => true),
+    listApiRequests: vi.fn(async () => [] as SavedApiRequest[]),
+    saveApiRequest: vi.fn(async (request: SavedApiRequest) => request),
+    deleteApiRequest: vi.fn(async () => true),
     ...overrides,
   }
   return bridge as unknown as NativeBridge
@@ -299,7 +306,7 @@ describe('createWorkbench', () => {
   it('wires the application services and core commands', async () => {
     const app = createWorkbench(createFakeBridge())
     const ids = app.commands.list().map((command) => command.id)
-    for (const id of ['project.open', 'project.remove', 'project.reveal', 'service.save', 'service.delete', 'service.startAll', 'service.stopAll', 'process.kill', 'port.kill', 'settings.load', 'settings.save']) {
+    for (const id of ['project.open', 'project.remove', 'project.reveal', 'service.save', 'service.delete', 'service.startAll', 'service.stopAll', 'process.kill', 'port.kill', 'settings.load', 'settings.save', 'utility.sql.open', 'utility.mybatis.restore.open', 'utility.api.open', 'utility.api.send', 'api.module.list', 'api.module.save', 'api.module.delete', 'api.request.list', 'api.request.save', 'api.request.delete']) {
       expect(ids).toContain(id)
     }
     expect(app.commandContext.services.get<ServiceCatalog>('catalog')).toBe(app.catalog)
@@ -307,6 +314,9 @@ describe('createWorkbench', () => {
     expect(app.commandContext.services.get<SettingsService>('settings')).toBe(app.settings)
     await expect(app.commands.execute('port.list', undefined, app.commandContext)).resolves.toEqual([])
     await expect(app.commands.execute('settings.load', undefined, app.commandContext)).resolves.toEqual({})
+    await expect(app.commands.execute('utility.sql.open', undefined, app.commandContext)).resolves.toBe('sql')
+    await expect(app.commands.execute('utility.mybatis.restore.open', undefined, app.commandContext)).resolves.toBe('mybatis-restore')
+    await expect(app.commands.execute('utility.api.open', undefined, app.commandContext)).resolves.toBe('api')
   })
 
   it('keeps the command context in sync with the active project', () => {

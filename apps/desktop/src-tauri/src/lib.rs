@@ -1,3 +1,4 @@
+mod api;
 mod error;
 mod manifest;
 mod models;
@@ -5,7 +6,10 @@ mod repository;
 mod scanner;
 
 use error::AppError;
-use models::{DevService, Project, ProjectContext, RunningService, ServiceState, now_millis};
+use models::{
+    ApiModule, DevService, Project, ProjectContext, RunningService, SavedApiRequest, ServiceState,
+    now_millis,
+};
 use sqlx::SqlitePool;
 use std::{
     collections::BTreeMap,
@@ -297,6 +301,56 @@ async fn set_setting(
     repository::save_setting(&state.database, &key, &value).await
 }
 
+#[tauri::command]
+async fn http_request(request: api::HttpRequest) -> Result<api::HttpResponse, AppError> {
+    Ok(api::send(request).await?)
+}
+
+#[tauri::command]
+async fn list_api_modules(state: State<'_, AppState>) -> Result<Vec<ApiModule>, AppError> {
+    repository::list_api_modules(&state.database).await
+}
+
+#[tauri::command]
+async fn save_api_module(
+    module: ApiModule,
+    state: State<'_, AppState>,
+) -> Result<ApiModule, AppError> {
+    repository::save_api_module(&state.database, &module).await
+}
+
+#[tauri::command]
+async fn delete_api_module(
+    module_id: String,
+    state: State<'_, AppState>,
+) -> Result<bool, AppError> {
+    repository::delete_api_module(&state.database, &module_id).await
+}
+
+#[tauri::command]
+async fn list_api_requests(
+    module_id: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<Vec<SavedApiRequest>, AppError> {
+    repository::list_api_requests(&state.database, module_id.as_deref()).await
+}
+
+#[tauri::command]
+async fn save_api_request(
+    request: SavedApiRequest,
+    state: State<'_, AppState>,
+) -> Result<SavedApiRequest, AppError> {
+    repository::save_api_request(&state.database, &request).await
+}
+
+#[tauri::command]
+async fn delete_api_request(
+    request_id: String,
+    state: State<'_, AppState>,
+) -> Result<bool, AppError> {
+    repository::delete_api_request(&state.database, &request_id).await
+}
+
 /// Emits `service-exit` once a started service stops, whichever way it ended.
 fn watch_service_exit(processes: Arc<ProcessRuntime>, app: tauri::AppHandle, service_id: String) {
     tauri::async_runtime::spawn(async move {
@@ -343,7 +397,14 @@ pub fn run() {
             list_ports,
             kill_port,
             get_settings,
-            set_setting
+            set_setting,
+            http_request,
+            list_api_modules,
+            save_api_module,
+            delete_api_module,
+            list_api_requests,
+            save_api_request,
+            delete_api_request
         ])
         .build(tauri::generate_context!())
         .expect("failed to build Dev Workbench");

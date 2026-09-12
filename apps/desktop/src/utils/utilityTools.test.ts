@@ -13,6 +13,12 @@ import {
   hmacText,
   hashText,
   inspectJwt,
+  buildSqlIn,
+  fillSqlParameters,
+  formatSql,
+  minifySql,
+  previewSqlDdl,
+  restoreMyBatisSql,
   testRegex,
 } from './utilityTools'
 
@@ -146,6 +152,53 @@ describe('hashText', () => {
 
   it('calculates HMAC without exposing the secret in the result contract', async () => {
     await expect(hmacText('abc', 'secret', 'HMAC-SHA256')).resolves.toHaveLength(64)
+  })
+})
+
+describe('SQL helpers', () => {
+  it('formats common SQL clauses and operators', () => {
+    expect(formatSql('select * from sys_user where id=1 and status=1')).toBe(
+      'SELECT *\nFROM sys_user\nWHERE id = 1\n  AND status = 1',
+    )
+  })
+
+  it('minifies SQL without changing quoted values', () => {
+    expect(minifySql("SELECT *\nFROM users\nWHERE name = 'A  B' AND id = 1")).toBe(
+      "SELECT * FROM users WHERE name='A  B' AND id=1",
+    )
+  })
+
+  it('builds a de-duplicated IN expression for strings and numbers', () => {
+    expect(buildSqlIn('1001\n1002\n1002', 'string')).toBe("IN ('1001', '1002')")
+    expect(buildSqlIn('1\n2\n1', 'number')).toBe('IN (1, 2)')
+    expect(() => buildSqlIn('1\nnope', 'number')).toThrow('line 2')
+  })
+
+  it('fills question-mark parameters without replacing quoted question marks', () => {
+    expect(fillSqlParameters("SELECT * FROM users WHERE note = '?' AND id = ?", '1001(Long)')).toBe("SELECT * FROM users WHERE note = '?' AND id = 1001")
+  })
+
+  it('previews CREATE TABLE columns without executing the DDL', () => {
+    expect(previewSqlDdl('CREATE TABLE sys_user (id BIGINT PRIMARY KEY, name VARCHAR(64) NOT NULL, PRIMARY KEY (id))')).toBe(
+      'Table: sys_user\nColumns:\n- id · BIGINT\n- name · VARCHAR(64)',
+    )
+  })
+})
+
+describe('MyBatis SQL restore', () => {
+  it('restores typed parameters and terminates the SQL statement', () => {
+    expect(restoreMyBatisSql(`Preparing:\nSELECT *\nFROM sys_user\nWHERE id = ?\nAND status = ?\n\nParameters:\n1001(Long), 1(Integer)`)).toBe(
+      'SELECT *\nFROM sys_user\nWHERE id = 1001\nAND status = 1;',
+    )
+  })
+
+  it('quotes strings and date-like values, escapes quotes, and renders null', () => {
+    expect(restoreMyBatisSql("==> Preparing: SELECT * FROM users WHERE name = ? AND created_at = ? AND deleted_at = ?\n==> Parameters: O'Reilly(String), 2024-01-01(Date), null"))
+      .toBe("SELECT * FROM users WHERE name = 'O''Reilly' AND created_at = '2024-01-01' AND deleted_at = NULL;")
+  })
+
+  it('rejects parameter count mismatches with a useful error', () => {
+    expect(() => restoreMyBatisSql('Preparing: SELECT * FROM users WHERE id = ?\nParameters: 1(Integer), 2(Integer)')).toThrow('expects 1 parameter')
   })
 })
 

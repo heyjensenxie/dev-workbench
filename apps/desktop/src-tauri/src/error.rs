@@ -11,6 +11,8 @@ pub enum AppError {
     Process(#[from] workbench_process::ProcessError),
     #[error("network operation failed: {0}")]
     Network(#[from] workbench_network::NetworkError),
+    #[error("API request failed: {0}")]
+    Api(#[from] crate::api::ApiError),
     #[error("invalid input: {0}")]
     Validation(String),
     #[error("resource not found: {0}")]

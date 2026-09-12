@@ -1,8 +1,8 @@
 import type { Component } from 'vue'
-import { CalendarClock, Code2, FileDiff, Hash, KeyRound, Link, Radio, RefreshCw, Regex, ShieldCheck, Sparkles } from 'lucide-vue-next'
+import { CalendarClock, Code2, Database, FileDiff, Hash, KeyRound, Link, Radio, RefreshCw, Regex, ShieldCheck, Sparkles } from 'lucide-vue-next'
 
-export type UtilityCategory = 'frequent' | 'data' | 'encoding' | 'security' | 'generators' | 'developer'
-export type UtilityId = 'json' | 'jwt' | 'timestamp' | 'regex' | 'text-diff' | 'uuid' | 'base64' | 'url' | 'hash' | 'cron' | 'random'
+export type UtilityCategory = 'frequent' | 'data' | 'encoding' | 'security' | 'generators' | 'developer' | 'database'
+export type UtilityId = 'json' | 'jwt' | 'timestamp' | 'regex' | 'text-diff' | 'uuid' | 'base64' | 'url' | 'hash' | 'cron' | 'random' | 'sql' | 'mybatis-restore'
 
 export interface UtilityDefinition {
   id: UtilityId
@@ -27,6 +27,8 @@ export const utilityDefinitions: UtilityDefinition[] = [
   { id: 'uuid', name: 'UUID Generator', description: 'Generate UUID v4 and v7 in batches', category: 'generators', icon: Hash, keywords: ['uuid', 'v4', 'v7', 'id', 'generate'] },
   { id: 'random', name: 'Random Generator', description: 'Create local strings, passwords and tokens', category: 'generators', icon: Sparkles, keywords: ['random', 'password', 'token', 'hex'] },
   { id: 'cron', name: 'Cron Workbench', description: 'Explain schedules and preview executions', category: 'developer', icon: Radio, keywords: ['cron', 'schedule', 'quartz', 'linux'] },
+  { id: 'sql', name: 'SQL Workbench', description: 'Format, minify and build SQL snippets locally', category: 'database', icon: Database, keywords: ['sql', 'mysql', 'postgresql', 'sqlite', 'formatter', 'in', 'ddl'] },
+  { id: 'mybatis-restore', name: 'MyBatis SQL Restore', description: 'Restore typed parameters into MyBatis logs', category: 'database', icon: Database, keywords: ['mybatis', 'sql', 'parameters', 'java', 'restore', 'preparing'] },
 ]
 
 export const utilityCategories: { id: UtilityCategory; label: string; ids: UtilityId[] }[] = [
@@ -36,6 +38,7 @@ export const utilityCategories: { id: UtilityCategory; label: string; ids: Utili
   { id: 'security', label: 'Security', ids: ['jwt', 'hash'] },
   { id: 'generators', label: 'Generators', ids: ['uuid', 'random'] },
   { id: 'developer', label: 'Developer', ids: ['regex', 'cron', 'timestamp'] },
+  { id: 'database', label: 'Database', ids: ['sql', 'mybatis-restore'] },
 ]
 
 export function getUtilityDefinition(id: UtilityId): UtilityDefinition {

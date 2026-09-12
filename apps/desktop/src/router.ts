@@ -7,6 +7,7 @@ import ProjectsView from './views/ProjectsView.vue'
 import ServicesView from './views/ServicesView.vue'
 import SettingsView from './views/SettingsView.vue'
 import UtilitiesView from './views/UtilitiesView.vue'
+import ApiWorkbenchView from './views/ApiWorkbenchView.vue'
 
 export const router = createRouter({
   history: createWebHashHistory(),
@@ -18,6 +19,7 @@ export const router = createRouter({
     { path: '/processes', name: 'processes', component: ProcessesView },
     { path: '/ports', name: 'ports', component: PortsView },
     { path: '/utilities', name: 'utilities', component: UtilitiesView },
+    { path: '/api', name: 'api', component: ApiWorkbenchView },
     { path: '/settings', name: 'settings', component: SettingsView },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],

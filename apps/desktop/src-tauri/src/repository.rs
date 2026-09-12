@@ -5,7 +5,7 @@
 
 use crate::{
     error::AppError,
-    models::{DevService, Project, now_millis},
+    models::{ApiModule, DevService, Project, SavedApiRequest, now_millis},
 };
 use sqlx::{
     Row, SqlitePool,
@@ -22,6 +22,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
     (
         "0002_service_metadata",
         include_str!("../migrations/0002_service_metadata.sql"),
+    ),
+    (
+        "0003_api_requests",
+        include_str!("../migrations/0003_api_requests.sql"),
+    ),
+    (
+        "0004_api_modules",
+        include_str!("../migrations/0004_api_modules.sql"),
     ),
 ];
 
@@ -150,6 +158,126 @@ pub async fn delete_service(pool: &SqlitePool, service_id: &str) -> Result<bool,
     Ok(result.rows_affected() > 0)
 }
 
+/// Lists API modules, newest first.
+pub async fn list_api_modules(pool: &SqlitePool) -> Result<Vec<ApiModule>, AppError> {
+    Ok(sqlx::query_as::<_, ApiModule>(
+        "SELECT id,name,description,created_at,updated_at FROM api_modules \
+         ORDER BY updated_at DESC, name COLLATE NOCASE",
+    )
+    .fetch_all(pool)
+    .await?)
+}
+
+/// Inserts or updates an API module.
+pub async fn save_api_module(pool: &SqlitePool, module: &ApiModule) -> Result<ApiModule, AppError> {
+    let id = module.id.trim();
+    let name = module.name.trim();
+    if id.is_empty() || id.chars().count() > 100 {
+        return Err(AppError::Validation(
+            "API module id must be 1-100 characters".into(),
+        ));
+    }
+    if name.is_empty() || name.chars().count() > 100 {
+        return Err(AppError::Validation(
+            "API module name must be 1-100 characters".into(),
+        ));
+    }
+    let now = now_millis();
+    let stored = ApiModule {
+        id: id.to_owned(),
+        name: name.to_owned(),
+        description: module
+            .description
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned),
+        created_at: if module.created_at > 0 {
+            module.created_at
+        } else {
+            now
+        },
+        updated_at: if module.updated_at > 0 {
+            module.updated_at
+        } else {
+            now
+        },
+    };
+    sqlx::query(
+        "INSERT INTO api_modules(id,name,description,created_at,updated_at) VALUES(?,?,?,?,?) \
+         ON CONFLICT(id) DO UPDATE SET name=excluded.name,description=excluded.description,updated_at=excluded.updated_at",
+    )
+    .bind(&stored.id)
+    .bind(&stored.name)
+    .bind(&stored.description)
+    .bind(stored.created_at)
+    .bind(stored.updated_at)
+    .execute(pool)
+    .await?;
+    Ok(stored)
+}
+
+/// Deletes a module; its requests become ungrouped through ON DELETE SET NULL.
+pub async fn delete_api_module(pool: &SqlitePool, module_id: &str) -> Result<bool, AppError> {
+    let result = sqlx::query("DELETE FROM api_modules WHERE id=?")
+        .bind(module_id.trim())
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// Lists saved API request templates, newest first, optionally scoped to a module.
+pub async fn list_api_requests(
+    pool: &SqlitePool,
+    module_id: Option<&str>,
+) -> Result<Vec<SavedApiRequest>, AppError> {
+    let rows = sqlx::query(
+        "SELECT id,name,method,url,module_id,headers_json,body,created_at,updated_at \
+         FROM api_requests WHERE (? IS NULL OR module_id=?) \
+         ORDER BY updated_at DESC, name COLLATE NOCASE",
+    )
+    .bind(module_id)
+    .bind(module_id)
+    .fetch_all(pool)
+    .await?;
+    rows.iter().map(api_request_from_row).collect()
+}
+
+/// Inserts or updates a request template after normalizing and scrubbing it.
+pub async fn save_api_request(
+    pool: &SqlitePool,
+    request: &SavedApiRequest,
+) -> Result<SavedApiRequest, AppError> {
+    let sanitized = sanitize_api_request(request)?;
+    sqlx::query(
+        "INSERT INTO api_requests(id,name,method,url,module_id,headers_json,body,created_at,updated_at) \
+         VALUES(?,?,?,?,?,?,?,?,?) \
+         ON CONFLICT(id) DO UPDATE SET name=excluded.name,method=excluded.method,url=excluded.url,module_id=excluded.module_id,\
+         headers_json=excluded.headers_json,body=excluded.body,updated_at=excluded.updated_at",
+    )
+    .bind(&sanitized.id)
+    .bind(&sanitized.name)
+    .bind(&sanitized.method)
+    .bind(&sanitized.url)
+    .bind(&sanitized.module_id)
+    .bind(encode(&sanitized.headers, "{}"))
+    .bind(&sanitized.body)
+    .bind(sanitized.created_at)
+    .bind(sanitized.updated_at)
+    .execute(pool)
+    .await?;
+    Ok(sanitized)
+}
+
+/// Deletes one saved API request and reports whether a row was removed.
+pub async fn delete_api_request(pool: &SqlitePool, request_id: &str) -> Result<bool, AppError> {
+    let result = sqlx::query("DELETE FROM api_requests WHERE id=?")
+        .bind(request_id.trim())
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected() > 0)
+}
+
 /// Removes every dependency edge pointing at `service_id` from its siblings.
 pub async fn forget_service_dependencies(
     pool: &SqlitePool,
@@ -253,6 +381,205 @@ fn service_from_row(row: &sqlx::sqlite::SqliteRow) -> Result<DevService, AppErro
     })
 }
 
+fn api_request_from_row(row: &sqlx::sqlite::SqliteRow) -> Result<SavedApiRequest, AppError> {
+    Ok(SavedApiRequest {
+        id: row.get("id"),
+        name: row.get("name"),
+        method: row.get("method"),
+        url: row.get("url"),
+        module_id: row.get("module_id"),
+        headers: decode(row.get("headers_json"), "{}"),
+        body: row.get("body"),
+        created_at: row.get("created_at"),
+        updated_at: row.get("updated_at"),
+    })
+}
+
+fn sanitize_api_request(request: &SavedApiRequest) -> Result<SavedApiRequest, AppError> {
+    let id = request.id.trim();
+    let name = request.name.trim();
+    let method = request.method.trim().to_uppercase();
+    let url = request.url.trim();
+    if id.is_empty() || id.chars().count() > 100 {
+        return Err(AppError::Validation(
+            "API request id must be 1-100 characters".into(),
+        ));
+    }
+    if name.is_empty() || name.chars().count() > 120 {
+        return Err(AppError::Validation(
+            "API request name must be 1-120 characters".into(),
+        ));
+    }
+    if !matches!(
+        method.as_str(),
+        "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS"
+    ) {
+        return Err(AppError::Validation("unsupported HTTP method".into()));
+    }
+    if url.is_empty() || url.chars().count() > 4096 {
+        return Err(AppError::Validation(
+            "API request URL must be 1-4096 characters".into(),
+        ));
+    }
+    let headers = request
+        .headers
+        .iter()
+        .filter_map(|(key, value)| {
+            let key = key.trim();
+            if key.is_empty() {
+                return None;
+            }
+            let stored = if is_sensitive_name(key) && !is_template(value) {
+                "{{SECRET}}".to_owned()
+            } else {
+                value.trim().to_owned()
+            };
+            Some((key.to_owned(), stored))
+        })
+        .collect();
+    let body = request
+        .body
+        .as_deref()
+        .map(sanitize_body)
+        .filter(|body| !body.is_empty());
+    if body
+        .as_deref()
+        .map_or(false, |value| value.len() > 5 * 1024 * 1024)
+    {
+        return Err(AppError::Validation(
+            "API request body must be 5 MB or smaller".into(),
+        ));
+    }
+    let now = now_millis();
+    Ok(SavedApiRequest {
+        id: id.to_owned(),
+        name: name.to_owned(),
+        method,
+        url: sanitize_url(url),
+        module_id: request
+            .module_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned),
+        headers,
+        body,
+        created_at: if request.created_at > 0 {
+            request.created_at
+        } else {
+            now
+        },
+        updated_at: if request.updated_at > 0 {
+            request.updated_at
+        } else {
+            now
+        },
+    })
+}
+
+fn is_sensitive_name(name: &str) -> bool {
+    let normalized = name.to_ascii_lowercase().replace(['-', '_'], "");
+    normalized.contains("token")
+        || normalized.contains("secret")
+        || normalized.contains("password")
+        || normalized.contains("passwd")
+        || normalized.contains("apikey")
+        || normalized == "authorization"
+        || normalized == "cookie"
+        || normalized == "setcookie"
+}
+
+fn sanitize_url(value: &str) -> String {
+    if let Ok(mut parsed) = reqwest::Url::parse(value) {
+        parsed.set_username("").ok();
+        parsed.set_password(None).ok();
+        let pairs: Vec<(String, String)> = parsed
+            .query_pairs()
+            .map(|(key, value)| (key.into_owned(), value.into_owned()))
+            .collect();
+        if !pairs.is_empty() {
+            parsed.set_query(None);
+            let mut query = parsed.query_pairs_mut();
+            for (key, value) in pairs {
+                query.append_pair(
+                    &key,
+                    if is_sensitive_name(&key) && !is_template(&value) {
+                        "{{SECRET}}"
+                    } else {
+                        &value
+                    },
+                );
+            }
+        }
+        return parsed.to_string();
+    }
+    let Some((base, query)) = value.split_once('?') else {
+        return value.to_owned();
+    };
+    let sanitized = query
+        .split('&')
+        .map(|part| {
+            let Some((key, value)) = part.split_once('=') else {
+                return part.to_owned();
+            };
+            format!(
+                "{key}={}",
+                if is_sensitive_name(key) {
+                    "{{SECRET}}"
+                } else {
+                    value
+                }
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("&");
+    format!("{base}?{sanitized}")
+}
+
+fn sanitize_body(value: &str) -> String {
+    if let Ok(mut json) = serde_json::from_str::<serde_json::Value>(value) {
+        scrub_json(&mut json);
+        return serde_json::to_string_pretty(&json).unwrap_or_else(|_| value.to_owned());
+    }
+    value
+        .split('&')
+        .map(|part| {
+            let Some((key, item_value)) = part.split_once('=') else {
+                return part.to_owned();
+            };
+            format!(
+                "{key}={}",
+                if is_sensitive_name(key) && !is_template(item_value) {
+                    "{{SECRET}}"
+                } else {
+                    item_value
+                }
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("&")
+}
+
+fn is_template(value: &str) -> bool {
+    value.contains("{{") && value.contains("}}")
+}
+
+fn scrub_json(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for (key, value) in map.iter_mut() {
+                if is_sensitive_name(key) && !value.as_str().is_some_and(is_template) {
+                    *value = serde_json::Value::String("{{SECRET}}".into());
+                } else {
+                    scrub_json(value);
+                }
+            }
+        }
+        serde_json::Value::Array(values) => values.iter_mut().for_each(scrub_json),
+        _ => {}
+    }
+}
+
 fn encode<T: serde::Serialize>(value: &T, fallback: &str) -> String {
     serde_json::to_string(value).unwrap_or_else(|_| fallback.to_owned())
 }
@@ -334,7 +661,15 @@ mod tests {
             .fetch_all(&pool)
             .await
             .unwrap();
-        assert_eq!(applied, vec!["0001_initial", "0002_service_metadata"]);
+        assert_eq!(
+            applied,
+            vec![
+                "0001_initial",
+                "0002_service_metadata",
+                "0003_api_requests",
+                "0004_api_modules"
+            ]
+        );
     }
 
     #[tokio::test]
@@ -361,6 +696,69 @@ mod tests {
         assert!(delete_service(&pool, "service-1").await.unwrap());
         assert!(!delete_service(&pool, "service-1").await.unwrap());
         assert!(get_service(&pool, "service-1").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn saves_api_requests_without_persisting_obvious_secrets() {
+        let database = TempDatabase::new("api-request");
+        let pool = connect(&database.path).await.unwrap();
+        let request = SavedApiRequest {
+            id: "request-1".into(),
+            name: "Create user".into(),
+            method: "post".into(),
+            url: "https://user:password@example.com/users?token=real-token&active=true".into(),
+            module_id: None,
+            headers: [
+                ("Authorization".into(), "Bearer real-token".into()),
+                ("Accept".into(), "application/json".into()),
+            ]
+            .into_iter()
+            .collect(),
+            body: Some(
+                r#"{"username":"demo","password":"real-password","profile":{"name":"Jensen"}}"#
+                    .into(),
+            ),
+            created_at: 0,
+            updated_at: 0,
+        };
+
+        let stored = save_api_request(&pool, &request).await.unwrap();
+        assert_eq!(stored.method, "POST");
+        assert!(stored.url.contains("token=%7B%7BSECRET%7D%7D"));
+        assert!(!stored.url.contains("real-token"));
+        assert_eq!(stored.headers["Authorization"], "{{SECRET}}");
+        assert!(!stored.body.as_deref().unwrap().contains("real-password"));
+        assert!(stored.body.as_deref().unwrap().contains("{{SECRET}}"));
+
+        let module = ApiModule {
+            id: "module-users".into(),
+            name: "Users".into(),
+            description: None,
+            created_at: 0,
+            updated_at: 0,
+        };
+        save_api_module(&pool, &module).await.unwrap();
+        let mut grouped = request.clone();
+        grouped.module_id = Some(module.id.clone());
+        save_api_request(&pool, &grouped).await.unwrap();
+        let listed = list_api_requests(&pool, Some(&module.id)).await.unwrap();
+        assert_eq!(listed.len(), 1);
+        assert!(delete_api_module(&pool, &module.id).await.unwrap());
+        assert!(
+            list_api_requests(&pool, Some(&module.id))
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            list_api_requests(&pool, None)
+                .await
+                .unwrap()
+                .iter()
+                .all(|item| item.module_id.is_none())
+        );
+        assert!(delete_api_request(&pool, "request-1").await.unwrap());
+        assert!(list_api_requests(&pool, None).await.unwrap().is_empty());
     }
 
     #[tokio::test]

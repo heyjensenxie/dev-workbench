@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Command, Copy, Cpu, FolderGit2, Languages, LayoutDashboard, Minus, Moon, Network, Play, Search, Settings, Square, Sun, Wrench, X } from 'lucide-vue-next'
+import { Command, Copy, Cpu, FolderGit2, Languages, LayoutDashboard, Minus, Moon, Network, PanelLeftClose, PanelLeftOpen, Play, Search, Send, Settings, Square, Sun, Wrench, X } from 'lucide-vue-next'
 import { getCurrentWindow, type Window } from '@tauri-apps/api/window'
 import { onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
@@ -14,9 +14,30 @@ const settings = useSettingsStore()
 const { languageLabel, locale, t } = useI18n()
 const paletteOpen = ref(false)
 const isMaximized = ref(false)
+const sidebarCollapsed = ref(initialSidebarCollapsed())
 const version = __APP_VERSION__
 let appWindow: Window | undefined
 let stopWindowResizeListener: (() => void) | undefined
+
+function initialSidebarCollapsed(): boolean {
+  try {
+    if (typeof localStorage === 'undefined') return false
+    const savedPreference = localStorage.getItem('sidebar-collapsed')
+    if (savedPreference !== null) return savedPreference === 'true'
+    return typeof window !== 'undefined' && window.matchMedia?.('(max-width: 880px)').matches === true
+  } catch {
+    return false
+  }
+}
+
+function toggleSidebar(): void {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  try {
+    localStorage.setItem('sidebar-collapsed', String(sidebarCollapsed.value))
+  } catch {
+    // Sidebar preference is optional; the current session still reflects the change.
+  }
+}
 
 function hasTauriWindow(): boolean {
   return typeof window !== 'undefined' && Reflect.has(window, '__TAURI_INTERNALS__')
@@ -113,9 +134,9 @@ async function bootstrap(): Promise<void> {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
     <header class="titlebar" data-tauri-drag-region @dblclick="handleTitlebarDoubleClick">
-      <div class="brand"><img class="brand-mark" :src="logoUrl" alt="" width="23" height="23" /><strong>Dev Workbench</strong><span class="alpha">ALPHA</span></div>
+      <div class="brand" aria-label="Dev Workbench"><img class="brand-mark" :src="logoUrl" alt="" width="23" height="23" /><strong>Dev Workbench</strong><span class="alpha">ALPHA</span></div>
       <button class="command-trigger" :aria-label="t('searchCommandBar')" @click="paletteOpen = true">
         <Search :size="15" />
         <span>{{ t('searchCommandBar') }}</span>
@@ -136,23 +157,60 @@ async function bootstrap(): Promise<void> {
       </div>
     </header>
     <aside class="sidebar">
-      <nav aria-label="Workbench navigation">
-        <span class="sidebar-section-label">{{ t('workspace') }}</span>
-        <RouterLink to="/"><LayoutDashboard :size="17" />{{ t('overview') }}</RouterLink>
-        <RouterLink to="/projects"><FolderGit2 :size="17" />{{ t('projects') }}</RouterLink>
-        <RouterLink to="/services"><Play :size="17" />{{ t('services') }}</RouterLink>
-        <span class="sidebar-section-label sidebar-section-spacer">{{ t('development') }}</span>
-        <RouterLink to="/processes"><Cpu :size="17" />{{ t('processes') }}</RouterLink>
-        <RouterLink to="/ports"><Network :size="17" />{{ t('ports') }}</RouterLink>
-        <span class="sidebar-section-label sidebar-section-spacer">{{ t('utilitiesGroup') }}</span>
-        <RouterLink to="/utilities"><Wrench :size="17" />{{ t('utilities') }}</RouterLink>
+      <div class="sidebar-header">
+        <span v-if="!sidebarCollapsed" class="sidebar-section-label">{{ t('workspace') }}</span>
+        <button class="sidebar-toggle" type="button" :aria-label="sidebarCollapsed ? t('expandSidebar') : t('collapseSidebar')" :aria-expanded="!sidebarCollapsed" :data-tooltip="sidebarCollapsed ? t('expandSidebar') : t('collapseSidebar')" @click="toggleSidebar">
+          <PanelLeftOpen v-if="sidebarCollapsed" :size="16" />
+          <PanelLeftClose v-else :size="16" />
+        </button>
+      </div>
+      <nav class="sidebar-navigation" aria-label="Workbench navigation">
+        <div class="sidebar-group">
+          <RouterLink class="sidebar-nav-item" to="/" :aria-label="t('overview')" :data-tooltip="sidebarCollapsed ? t('overview') : undefined">
+            <span class="sidebar-icon-slot"><LayoutDashboard :size="18" /></span>
+            <span v-if="!sidebarCollapsed" class="sidebar-nav-label">{{ t('overview') }}</span>
+          </RouterLink>
+          <RouterLink class="sidebar-nav-item" to="/projects" :aria-label="t('projects')" :data-tooltip="sidebarCollapsed ? t('projects') : undefined">
+            <span class="sidebar-icon-slot"><FolderGit2 :size="18" /></span>
+            <span v-if="!sidebarCollapsed" class="sidebar-nav-label">{{ t('projects') }}</span>
+          </RouterLink>
+          <RouterLink class="sidebar-nav-item" to="/services" :aria-label="t('services')" :data-tooltip="sidebarCollapsed ? t('services') : undefined">
+            <span class="sidebar-icon-slot"><Play :size="18" /></span>
+            <span v-if="!sidebarCollapsed" class="sidebar-nav-label">{{ t('services') }}</span>
+          </RouterLink>
+        </div>
+        <div class="sidebar-group">
+          <span v-if="!sidebarCollapsed" class="sidebar-section-label">{{ t('development') }}</span>
+          <RouterLink class="sidebar-nav-item" to="/processes" :aria-label="t('processes')" :data-tooltip="sidebarCollapsed ? t('processes') : undefined">
+            <span class="sidebar-icon-slot"><Cpu :size="18" /></span>
+            <span v-if="!sidebarCollapsed" class="sidebar-nav-label">{{ t('processes') }}</span>
+          </RouterLink>
+          <RouterLink class="sidebar-nav-item" to="/ports" :aria-label="t('ports')" :data-tooltip="sidebarCollapsed ? t('ports') : undefined">
+            <span class="sidebar-icon-slot"><Network :size="18" /></span>
+            <span v-if="!sidebarCollapsed" class="sidebar-nav-label">{{ t('ports') }}</span>
+          </RouterLink>
+        </div>
+        <div class="sidebar-group">
+          <span v-if="!sidebarCollapsed" class="sidebar-section-label">{{ t('utilitiesGroup') }}</span>
+          <RouterLink class="sidebar-nav-item" to="/utilities" :aria-label="t('utilities')" :data-tooltip="sidebarCollapsed ? t('utilities') : undefined">
+            <span class="sidebar-icon-slot"><Wrench :size="18" /></span>
+            <span v-if="!sidebarCollapsed" class="sidebar-nav-label">{{ t('utilities') }}</span>
+          </RouterLink>
+          <RouterLink class="sidebar-nav-item" to="/api" aria-label="API Workbench" :data-tooltip="sidebarCollapsed ? 'API Workbench' : undefined">
+            <span class="sidebar-icon-slot"><Send :size="18" /></span>
+            <span v-if="!sidebarCollapsed" class="sidebar-nav-label">API Workbench</span>
+          </RouterLink>
+        </div>
       </nav>
       <div class="sidebar-bottom">
-        <div v-if="store.activeProject" class="sidebar-project">
+        <RouterLink v-if="store.activeProject" class="sidebar-project" to="/projects" :aria-label="`${t('currentProject')}: ${store.activeProject.name}`" :data-tooltip="sidebarCollapsed ? `${t('currentProject')}: ${store.activeProject.name}` : undefined">
           <span class="sidebar-project-dot"></span>
-          <span><small>{{ t('currentProject') }}</small><strong>{{ store.activeProject.name }}</strong></span>
-        </div>
-        <nav><RouterLink to="/settings"><Settings :size="17" />{{ t('settings') }}</RouterLink></nav>
+          <span v-if="!sidebarCollapsed" class="sidebar-project-copy"><small>{{ t('currentProject') }}</small><strong>{{ store.activeProject.name }}</strong></span>
+        </RouterLink>
+        <nav class="sidebar-footer-navigation"><RouterLink class="sidebar-nav-item" to="/settings" :aria-label="t('settings')" :data-tooltip="sidebarCollapsed ? t('settings') : undefined">
+          <span class="sidebar-icon-slot"><Settings :size="18" /></span>
+          <span v-if="!sidebarCollapsed" class="sidebar-nav-label">{{ t('settings') }}</span>
+        </RouterLink></nav>
       </div>
     </aside>
     <main class="workspace"><RouterView /></main>

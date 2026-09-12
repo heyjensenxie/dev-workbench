@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use std::collections::BTreeMap;
 
 pub fn now_millis() -> i64 {
     std::time::SystemTime::now()
@@ -146,4 +147,30 @@ pub struct ServiceState {
 pub struct RunningService {
     pub service_id: String,
     pub pid: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, FromRow, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiModule {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+/// A saved API request template. Secret values are scrubbed before persistence.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedApiRequest {
+    pub id: String,
+    pub name: String,
+    pub method: String,
+    pub url: String,
+    pub module_id: Option<String>,
+    #[serde(default)]
+    pub headers: BTreeMap<String, String>,
+    pub body: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
 }

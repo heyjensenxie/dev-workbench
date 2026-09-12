@@ -142,6 +142,48 @@ export interface ServiceLogEvent {
   timestamp: number
 }
 
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS'
+
+/** In-memory request contract shared by the API editor and native HTTP adapter. */
+export interface HttpRequest {
+  method: HttpMethod
+  url: string
+  headers: Record<string, string>
+  body?: string
+  timeoutMs?: number
+}
+
+/** Response metadata returned to the local API editor without native logging. */
+export interface HttpResponse {
+  status: number
+  statusText: string
+  headers: Record<string, string>
+  body: string
+  durationMs: number
+  truncated: boolean
+}
+
+/** Persisted API request template; environment values are intentionally not included. */
+export interface SavedApiRequest {
+  id: string
+  name: string
+  method: HttpMethod
+  url: string
+  moduleId?: string
+  headers: Record<string, string>
+  body?: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface ApiModule {
+  id: string
+  name: string
+  description?: string
+  createdAt: number
+  updatedAt: number
+}
+
 /** Field-level problems a service definition can have. */
 export type ServiceIssue =
   | 'nameRequired'

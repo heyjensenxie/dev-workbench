@@ -16,6 +16,7 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+reqwest.workspace = true
 uuid.workspace = true
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
@@ -24,4 +25,3 @@ dirs = "6"
 workbench-process = { path = "../../../crates/process" }
 workbench-system = { path = "../../../crates/system" }
 workbench-network = { path = "../../../crates/network" }
-

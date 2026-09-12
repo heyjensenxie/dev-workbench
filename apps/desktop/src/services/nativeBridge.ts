@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { listen } from '@tauri-apps/api/event'
 import type { NativeBridge } from '@dev-workbench/core'
-import type { DevService, PortInfo, ProcessInfo, Project, ProjectContext, RunningService, ServiceLogEvent, ServiceState } from '@dev-workbench/shared'
+import type { ApiModule, DevService, HttpRequest, HttpResponse, PortInfo, ProcessInfo, Project, ProjectContext, RunningService, SavedApiRequest, ServiceLogEvent, ServiceState } from '@dev-workbench/shared'
 
 class TauriNativeBridge implements NativeBridge {
   listProjects = () => invoke<Project[]>('list_projects')
@@ -24,6 +24,13 @@ class TauriNativeBridge implements NativeBridge {
   killPort = (port: number) => invoke<void>('kill_port', { port })
   getSettings = () => invoke<Record<string, unknown>>('get_settings')
   setSetting = (key: string, value: unknown) => invoke<void>('set_setting', { key, value })
+  httpRequest = (request: HttpRequest) => invoke<HttpResponse>('http_request', { request })
+  listApiModules = () => invoke<ApiModule[]>('list_api_modules')
+  saveApiModule = (module: ApiModule) => invoke<ApiModule>('save_api_module', { module })
+  deleteApiModule = (moduleId: string) => invoke<boolean>('delete_api_module', { moduleId })
+  listApiRequests = (moduleId?: string) => invoke<SavedApiRequest[]>('list_api_requests', { moduleId })
+  saveApiRequest = (request: SavedApiRequest) => invoke<SavedApiRequest>('save_api_request', { request })
+  deleteApiRequest = (requestId: string) => invoke<boolean>('delete_api_request', { requestId })
 }
 
 export const nativeBridge = new TauriNativeBridge()

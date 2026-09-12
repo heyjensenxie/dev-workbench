@@ -2,6 +2,7 @@
 import { fuzzyMatch } from '@dev-workbench/command'
 import { Command, Search } from 'lucide-vue-next'
 import { computed, nextTick, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { workbench } from '../services/workbench'
 import { useI18n } from '../i18n'
 import { useWorkbenchStore } from '../stores/workbench'
@@ -10,9 +11,11 @@ const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ 'update:open': [value: boolean] }>()
 const { t } = useI18n()
 const store = useWorkbenchStore()
+const router = useRouter()
 /** Commands that take no argument, so the palette can run them directly. */
 const inputFreeCommands = new Set(['process.list', 'port.list', 'service.listRunning', 'service.stopEverything'])
-const paletteCommands = new Set(['project.open', 'project.refresh', 'service.startAll', 'service.stopAll', ...inputFreeCommands])
+const utilityCommands = new Set(['utility.sql.open', 'utility.mybatis.restore.open', 'utility.api.open'])
+const paletteCommands = new Set(['project.open', 'project.refresh', 'service.startAll', 'service.stopAll', ...inputFreeCommands, ...utilityCommands])
 const query = ref('')
 const input = ref<HTMLInputElement>()
 const selectedIndex = ref(0)
@@ -56,6 +59,9 @@ async function execute(id: string): Promise<void> {
   } else if (id.startsWith('service.restart:')) {
     const service = store.services.find((item) => item.id === id.slice('service.restart:'.length))
     if (service) await store.restartService(service)
+  } else if (utilityCommands.has(id)) {
+    const utilityId = await workbench.commands.execute<undefined, string>(id, undefined, workbench.commandContext)
+    await router.push(utilityId === 'api' ? { name: 'api' } : { name: 'utilities', query: { tool: utilityId } })
   } else if (inputFreeCommands.has(id)) {
     await workbench.commands.execute(id, undefined, workbench.commandContext)
   }

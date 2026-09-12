@@ -1,7 +1,7 @@
 import { CommandRegistry, type Command, type CommandContext, type ServiceContainer as ServiceContainerContract } from '@dev-workbench/command'
 import { ContextStore } from '@dev-workbench/context'
 import { AppError, createServiceId, validateDevService } from '@dev-workbench/shared'
-import type { DevService, PortInfo, ProcessInfo, Project, ProjectContext, RunningService, ServiceState, SuggestedService } from '@dev-workbench/shared'
+import type { ApiModule, DevService, HttpRequest, HttpResponse, PortInfo, ProcessInfo, Project, ProjectContext, RunningService, SavedApiRequest, ServiceState, SuggestedService } from '@dev-workbench/shared'
 import { SettingsService } from './settings'
 import { SystemService } from './system'
 
@@ -28,6 +28,13 @@ export interface NativeBridge {
   killPort(port: number): Promise<void>
   getSettings(): Promise<Record<string, unknown>>
   setSetting(key: string, value: unknown): Promise<void>
+  httpRequest(request: HttpRequest): Promise<HttpResponse>
+  listApiModules(): Promise<ApiModule[]>
+  saveApiModule(module: ApiModule): Promise<ApiModule>
+  deleteApiModule(moduleId: string): Promise<boolean>
+  listApiRequests(moduleId?: string): Promise<SavedApiRequest[]>
+  saveApiRequest(request: SavedApiRequest): Promise<SavedApiRequest>
+  deleteApiRequest(requestId: string): Promise<boolean>
 }
 
 export class ServiceContainer implements ServiceContainerContract {
@@ -136,6 +143,18 @@ export class ServiceCatalog {
   remove(serviceId: string): Promise<boolean> {
     return this.bridge.deleteService(serviceId)
   }
+}
+
+/** Application service for persisted API modules and request templates. */
+export class ApiCatalog {
+  constructor(private readonly bridge: NativeBridge) {}
+
+  listModules(): Promise<ApiModule[]> { return this.bridge.listApiModules() }
+  saveModule(module: ApiModule): Promise<ApiModule> { return this.bridge.saveApiModule(module) }
+  removeModule(moduleId: string): Promise<boolean> { return this.bridge.deleteApiModule(moduleId) }
+  listRequests(moduleId?: string): Promise<SavedApiRequest[]> { return this.bridge.listApiRequests(moduleId) }
+  saveRequest(request: SavedApiRequest): Promise<SavedApiRequest> { return this.bridge.saveApiRequest(request) }
+  removeRequest(requestId: string): Promise<boolean> { return this.bridge.deleteApiRequest(requestId) }
 }
 
 export interface BatchOutcome {
@@ -288,6 +307,7 @@ export interface WorkbenchApplication {
   projects: ProjectService
   services: ServiceManager
   catalog: ServiceCatalog
+  api: ApiCatalog
   system: SystemService
   settings: SettingsService
 }
@@ -298,6 +318,7 @@ export function createWorkbench(bridge: NativeBridge): WorkbenchApplication {
   const projects = new ProjectService(bridge, context)
   const services = new ServiceManager(bridge)
   const catalog = new ServiceCatalog(bridge)
+  const api = new ApiCatalog(bridge)
   const system = new SystemService(bridge)
   const settings = new SettingsService(bridge)
   container
@@ -305,13 +326,14 @@ export function createWorkbench(bridge: NativeBridge): WorkbenchApplication {
     .set('projects', projects)
     .set('services', services)
     .set('catalog', catalog)
+    .set('api', api)
     .set('system', system)
     .set('settings', settings)
   const commands = new CommandRegistry()
   const commandContext: CommandContext = { workbench: { activeProjectId: undefined }, services: container }
   registerCoreCommands(commands)
   context.subscribe((state) => { commandContext.workbench.activeProjectId = state.activeProjectId })
-  return { commands, commandContext, context, projects, services, catalog, system, settings }
+  return { commands, commandContext, context, projects, services, catalog, api, system, settings }
 }
 
 function registerCoreCommands(registry: CommandRegistry): void {
@@ -339,6 +361,16 @@ function registerCoreCommands(registry: CommandRegistry): void {
     { id: 'port.kill', title: 'Kill Process Tree on Port', category: 'System', execute: (input, ctx) => ctx.services.get<SystemService>('system').killPort(input as number) },
     { id: 'settings.load', title: 'Load Settings', category: 'Settings', execute: (_, ctx) => ctx.services.get<SettingsService>('settings').load() },
     { id: 'settings.save', title: 'Save Setting', category: 'Settings', execute: (input, ctx) => ctx.services.get<SettingsService>('settings').saveAll(input as Record<string, unknown>) },
+    { id: 'utility.sql.open', title: 'Open SQL Workbench', category: 'Utilities / Database', execute: async () => 'sql' },
+    { id: 'utility.mybatis.restore.open', title: 'Open MyBatis SQL Restore', category: 'Utilities / Database', execute: async () => 'mybatis-restore' },
+    { id: 'utility.api.open', title: 'Open API Workbench', category: 'Utilities / API', execute: async () => 'api' },
+    { id: 'utility.api.send', title: 'Send API Request', category: 'Utilities / API', execute: (input, ctx) => ctx.services.get<NativeBridge>('nativeBridge').httpRequest(input as HttpRequest) },
+    { id: 'api.module.list', title: 'List API Modules', category: 'API', execute: (_, ctx) => ctx.services.get<ApiCatalog>('api').listModules() },
+    { id: 'api.module.save', title: 'Save API Module', category: 'API', execute: (input, ctx) => ctx.services.get<ApiCatalog>('api').saveModule(input as ApiModule) },
+    { id: 'api.module.delete', title: 'Delete API Module', category: 'API', execute: (input, ctx) => ctx.services.get<ApiCatalog>('api').removeModule(input as string) },
+    { id: 'api.request.list', title: 'List Saved API Requests', category: 'API', execute: (input, ctx) => ctx.services.get<ApiCatalog>('api').listRequests(input as string | undefined) },
+    { id: 'api.request.save', title: 'Save API Request', category: 'API', execute: (input, ctx) => ctx.services.get<ApiCatalog>('api').saveRequest(input as SavedApiRequest) },
+    { id: 'api.request.delete', title: 'Delete Saved API Request', category: 'API', execute: (input, ctx) => ctx.services.get<ApiCatalog>('api').removeRequest(input as string) },
   ]
   definitions.forEach((command) => registry.register(command))
 }

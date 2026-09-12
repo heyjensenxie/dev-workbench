@@ -248,6 +248,197 @@ export function diffText(original: string, changed: string, options: { ignoreWhi
   return rows
 }
 
+export type SqlDialect = 'mysql' | 'postgresql' | 'sqlite'
+export type SqlInValueType = 'string' | 'number'
+
+const SQL_KEYWORDS = ['select', 'from', 'where', 'group by', 'order by', 'having', 'limit', 'offset', 'union all', 'union', 'returning', 'set', 'values', 'left outer join', 'right outer join', 'full outer join', 'left join', 'right join', 'full join', 'inner join', 'cross join', 'join', 'and', 'or']
+const SQL_NUMERIC_TYPES = new Set(['byte', 'short', 'integer', 'int', 'long', 'float', 'double', 'bigdecimal', 'big_integer', 'biginteger', 'decimal', 'number'])
+const SQL_BOOLEAN_TYPES = new Set(['boolean', 'bool'])
+const SQL_NULL_TYPES = new Set(['null'])
+
+/** Formats common SQL without pretending to be a full dialect parser. Literals and comments remain opaque. */
+export function formatSql(value: string, _dialect: SqlDialect = 'mysql'): string {
+  const source = value.trim()
+  if (!source) throw new Error('SQL is empty')
+  const protectedSql = protectSqlSegments(source)
+  const protectedValue = protectedSql.value
+    .replace(/\s+/g, ' ')
+    .replace(/\s*(<>|!=|<=|>=|=|<|>)\s*/g, ' $1 ')
+    .replace(/\s*,\s*/g, ', ')
+    .replace(/\(\s+/g, '(')
+    .replace(/\s+\)/g, ')')
+    .trim()
+  const uppercased = replaceSqlKeywords(protectedValue)
+  const lineBreakKeywords = /\s+(?=(?:FROM|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT|OFFSET|RETURNING|SET|VALUES|UNION(?: ALL)?|LEFT(?: OUTER)? JOIN|RIGHT(?: OUTER)? JOIN|FULL(?: OUTER)? JOIN|INNER JOIN|CROSS JOIN|JOIN)\b)/g
+  const logicalBreaks = /\s+(?=(?:AND|OR)\b)/g
+  return restoreSqlSegments(uppercased.replace(lineBreakKeywords, '\n').replace(logicalBreaks, '\n  ').replace(/\n  (FROM|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT|OFFSET|RETURNING|SET|VALUES|UNION)/g, '\n$1').trim(), protectedSql.segments)
+}
+
+/** Collapses SQL whitespace while preserving quoted strings and line comments. */
+export function minifySql(value: string, _dialect: SqlDialect = 'mysql'): string {
+  const source = value.trim()
+  if (!source) throw new Error('SQL is empty')
+  const withoutComments = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)--[^\r\n]*/g, '$1')
+  const protectedSql = protectSqlSegments(withoutComments)
+  const compact = protectedSql.value
+    .replace(/\s+/g, ' ')
+    .replace(/\s*(<>|!=|<=|>=|=|<|>)\s*/g, '$1')
+    .replace(/\s*,\s*/g, ',')
+    .replace(/\(\s+/g, '(')
+    .replace(/\s+\)/g, ')')
+    .trim()
+  return restoreSqlSegments(compact, protectedSql.segments)
+}
+
+/** Builds a safe SQL IN fragment and rejects invalid numeric input instead of coercing it. */
+export function buildSqlIn(value: string, type: SqlInValueType): string {
+  const entries = value.split(/[\r\n,]+/).map((entry) => entry.trim()).filter(Boolean)
+  if (!entries.length) throw new Error('IN values are empty')
+  const unique = [...new Set(entries)]
+  if (type === 'number') {
+    unique.forEach((entry, index) => {
+      if (!/^-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(entry)) throw new Error(`Invalid number at line ${index + 1}`)
+    })
+    return `IN (${unique.join(', ')})`
+  }
+  return `IN (${unique.map((entry) => `'${entry.replaceAll("'", "''")}'`).join(', ')})`
+}
+
+/** Creates a compact, read-only DDL summary for the common CREATE TABLE shape. */
+export function previewSqlDdl(value: string): string {
+  const match = value.trim().match(/^create\s+table\s+(?:if\s+not\s+exists\s+)?([`"\[]?[\w.-]+[`"\]]?)\s*\(([\s\S]*)\)\s*;?$/i)
+  if (!match) throw new Error('DDL preview supports CREATE TABLE statements')
+  const table = match[1]!.replace(/^[`"\[]|[`"\]]$/g, '')
+  const definitions = splitSqlList(match[2]!)
+  const columns = definitions
+    .filter((definition) => !/^(primary|unique|constraint|foreign|check|index|key)\b/i.test(definition.trim()))
+    .map((definition) => {
+      const column = definition.trim().match(/^([`"\[]?[\w.-]+[`"\]]?)\s+(.+?)(?=\s+(?:not\s+null|null|default|primary\s+key|unique|references|check)\b|$)/i)
+      return column ? `${column[1]!.replace(/^[`"\[]|[`"\]]$/g, '')} · ${column[2]!.trim()}` : definition.trim()
+    })
+  if (!columns.length) throw new Error('CREATE TABLE does not contain columns')
+  return [`Table: ${table}`, 'Columns:', ...columns.map((column) => `- ${column}`)].join('\n')
+}
+
+export interface MyBatisParameter {
+  value: string
+  type: string
+}
+
+/** Restores a MyBatis Preparing/Parameters log locally; it never executes or validates the SQL remotely. */
+export function restoreMyBatisSql(log: string): string {
+  const preparing = log.match(/(?:^|\n)\s*(?:==>\s*)?Preparing:\s*([\s\S]*?)(?=\n\s*(?:==>\s*)?Parameters:|$)/i)?.[1]?.trim()
+  if (!preparing) throw new Error('MyBatis log is missing Preparing SQL')
+  const parametersText = log.match(/(?:^|\n)\s*(?:==>\s*)?Parameters:\s*([^\r\n]*)/i)?.[1]?.trim() ?? ''
+  const parameters = parseMyBatisParameters(parametersText)
+  const placeholders = countSqlPlaceholders(preparing)
+  if (placeholders !== parameters.length) throw new Error(`SQL expects ${placeholders} parameter${placeholders === 1 ? '' : 's'}, but log contains ${parameters.length}`)
+  let parameterIndex = 0
+  const restored = replaceSqlPlaceholders(preparing, () => renderMyBatisParameter(parameters[parameterIndex++]!))
+  return `${restored.replace(/;\s*$/, '').trim()};`
+}
+
+/** Fills question-mark placeholders in a plain SQL snippet using the same typed values as MyBatis logs. */
+export function fillSqlParameters(sql: string, parametersText: string): string {
+  const source = sql.trim()
+  if (!source) throw new Error('SQL is empty')
+  const parameters = parseMyBatisParameters(parametersText)
+  const placeholders = countSqlPlaceholders(source)
+  if (placeholders !== parameters.length) throw new Error(`SQL expects ${placeholders} parameter${placeholders === 1 ? '' : 's'}, but input contains ${parameters.length}`)
+  let parameterIndex = 0
+  return replaceSqlPlaceholders(source, () => renderMyBatisParameter(parameters[parameterIndex++]!))
+}
+
+/** Parses the typed comma-separated format emitted by MyBatis logging implementations. */
+export function parseMyBatisParameters(value: string): MyBatisParameter[] {
+  if (!value.trim()) return []
+  const parameters: MyBatisParameter[] = []
+  let remaining = value.trim()
+  while (remaining) {
+    const typed = remaining.match(/^(.*?)\s*\(([^()]+)\)\s*(?:,\s*|$)/s)
+    if (typed) {
+      parameters.push({ value: typed[1]!.trim(), type: typed[2]!.trim() })
+      remaining = remaining.slice(typed[0].length).trim()
+      continue
+    }
+    const separator = remaining.indexOf(',')
+    const raw = (separator < 0 ? remaining : remaining.slice(0, separator)).trim()
+    if (!raw) throw new Error('MyBatis Parameters contains an empty value')
+    parameters.push({ value: raw, type: raw.toLowerCase() === 'null' ? 'null' : 'String' })
+    remaining = separator < 0 ? '' : remaining.slice(separator + 1).trim()
+  }
+  return parameters
+}
+
+function renderMyBatisParameter(parameter: MyBatisParameter): string {
+  const normalizedType = parameter.type.toLowerCase().replace(/[.$]/g, '')
+  const raw = parameter.value.trim()
+  if (SQL_NULL_TYPES.has(normalizedType) || raw.toLowerCase() === 'null') return 'NULL'
+  if (SQL_NUMERIC_TYPES.has(normalizedType) || SQL_BOOLEAN_TYPES.has(normalizedType)) return raw
+  return `'${raw.replace(/^(['"])([\s\S]*)\1$/, '$2').replaceAll("'", "''")}'`
+}
+
+function protectSqlSegments(value: string): { value: string; segments: string[] } {
+  const segments: string[] = []
+  const protectedValue = value.replace(/'(?:''|\\.|[^'\\])*'|"(?:""|\\.|[^"\\])*"|`[^`]*`/g, (segment) => {
+    segments.push(segment)
+    return `\u0000${segments.length - 1}\u0000`
+  })
+  return { value: protectedValue, segments }
+}
+
+function restoreSqlSegments(value: string, segments: string[]): string {
+  return value.replace(/\u0000(\d+)\u0000/g, (_, index: string) => segments[Number(index)] ?? '')
+}
+
+function replaceSqlKeywords(value: string): string {
+  return SQL_KEYWORDS.reduce((result, keyword) => result.replace(new RegExp(`\\b${keyword.replace(' ', '\\s+')}\\b`, 'gi'), keyword.toUpperCase()), value)
+}
+
+function splitSqlList(value: string): string[] {
+  const entries: string[] = []
+  let start = 0
+  let depth = 0
+  let quote: string | undefined
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index]!
+    if (quote) {
+      if (character === quote && value[index + 1] === quote) index += 1
+      else if (character === quote && value[index - 1] !== '\\') quote = undefined
+      continue
+    }
+    if (character === "'" || character === '"' || character === '`') { quote = character; continue }
+    if (character === '(') depth += 1
+    else if (character === ')') depth -= 1
+    else if (character === ',' && depth === 0) { entries.push(value.slice(start, index)); start = index + 1 }
+  }
+  entries.push(value.slice(start))
+  return entries.filter((entry) => entry.trim())
+}
+
+function countSqlPlaceholders(value: string): number {
+  let count = 0
+  replaceSqlPlaceholders(value, () => { count += 1; return '?' })
+  return count
+}
+
+function replaceSqlPlaceholders(value: string, replacer: () => string): string {
+  let output = ''
+  let quote: string | undefined
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index]!
+    if (quote) {
+      output += character
+      if (character === quote && value[index + 1] === quote) output += value[++index]!
+      else if (character === quote && value[index - 1] !== '\\') quote = undefined
+      continue
+    }
+    if (character === "'" || character === '"' || character === '`') { quote = character; output += character; continue }
+    output += character === '?' ? replacer() : character
+  }
+  return output
+}
+
 function decodeBase64Url(value: string): string {
   const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
   return decodeBase64(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '='))
