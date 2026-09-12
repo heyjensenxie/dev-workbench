@@ -7,6 +7,21 @@ releases are marked with pre-release identifiers (`-alpha.N`) because the plugin
 and native boundaries described in [docs/architecture.md](docs/architecture.md)
 are still moving.
 
+## Unreleased
+
+### Added
+
+- `pnpm build:portable` and [`scripts/build-portable.ps1`](scripts/build-portable.ps1) produce a self-contained Windows executable at `release/Dev Workbench.exe`: no installer, no administrator rights, and no side-by-side files. The output name carries no version so a pinned shortcut survives a rebuild; `-OutDir` and `-Configuration` are available, and the script targets Windows PowerShell 5.1 so PowerShell 7 is not required
+- `docs/development.md` gained a Packaging section covering both build outputs, the portable executable's WebView2 prerequisite, and where application data lives relative to the binary
+
+### Changed
+
+- The root `Cargo.toml` now declares a size-first `[profile.release]` — fat LTO, one codegen unit, `opt-level = "s"`, `panic = "abort"`, and stripped symbols — which brings the portable executable to about 7 MB; the tradeoff is a slower cold release build
+
+### Fixed
+
+- Release builds no longer open a console window next to the application. `apps/desktop/src-tauri/src/main.rs` was missing the `windows_subsystem = "windows"` attribute that the Tauri template ships, so the linker emitted a console-subsystem executable (PE subsystem 3) and Windows attached a `cmd` window to every release launch — most visibly to the double-clicked portable build. Debug builds keep the console so `pnpm dev` still shows the runtime's output
+
 ## 0.1.0-alpha.2 - 2026-09-13
 
 The first public release. This section collects everything built on top of the

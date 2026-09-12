@@ -37,6 +37,7 @@ pnpm dev:web    # browser-only UI, no native shell
 | `crates/vault` | Password vault: cryptography, Argon2id parameters, page-locked memory, session, storage, and the threat-model suite |
 | `crates/docker`, `crates/git`, `crates/pty` | Declared native boundaries with no implementation yet |
 | `plugins/*` | Reserved plugin packages with no implementation yet |
+| `scripts/` | Maintenance scripts that cannot be expressed as a root pnpm or Cargo command — today, the portable Windows packaging script |
 | `docs/` | Architecture, development, and vault security documentation |
 
 ## Working rules
@@ -80,12 +81,31 @@ cargo test --workspace
 cargo check --workspace
 ```
 
-CI (`.github/workflows/ci.yml`) runs the frontend checks plus `cargo fmt`, `cargo clippy`, and `cargo test` on every push to `main` and every pull request. On a `v*` tag, `.github/workflows/release.yml` builds installers for Linux, Windows, and macOS and opens a draft release; run `pnpm --filter @dev-workbench/desktop tauri build` locally to produce a bundle for your own platform.
+CI (`.github/workflows/ci.yml`) runs the frontend checks plus `cargo fmt`, `cargo clippy`, and `cargo test` on every push to `main` and every pull request. On a `v*` tag, `.github/workflows/release.yml` builds installers for Linux, Windows, and macOS and opens a draft release; see [Packaging](#packaging) to produce an artifact locally.
+
+## Packaging
+
+Two build outputs are available, and both embed the frontend bundle and the icons, so neither needs side-by-side files.
+
+| Goal | Command | Output |
+|---|---|---|
+| Portable executable for your own machine | `pnpm build:portable` | `release/Dev Workbench.exe` |
+| Platform installers for distribution | `pnpm --filter @dev-workbench/desktop tauri build` | `target/release/bundle/` |
+
+`pnpm build:portable` runs [`scripts/build-portable.ps1`](../scripts/build-portable.ps1), which builds the frontend, makes a release build without a bundler, and copies the executable into `release/` under a stable name. That name carries no version, so a pinned taskbar entry or desktop shortcut keeps working across rebuilds; pass `-OutDir` to send the artifact somewhere else. It is Windows-only today, because it expects a `dev-workbench.exe` binary and names the output accordingly.
+
+The portable executable needs no installer and no administrator rights. Its only external prerequisite is the Microsoft Edge WebView2 runtime, which ships with Windows 10 and 11. Application data still lives in the platform application data directory rather than next to the executable, so moving the file does not move the database.
+
+`tauri build` additionally produces the MSI and NSIS installers configured by `bundle.targets` in `apps/desktop/src-tauri/tauri.conf.json`, and needs to download the WiX and NSIS toolchains the first time. These installers are unsigned, so the operating system may ask for confirmation before opening one.
+
+### Release profile
+
+The root `Cargo.toml` sets a size-first `[profile.release]`: fat LTO, one codegen unit, `opt-level = "s"`, `panic = "abort"`, and stripped symbols. This is what keeps the portable executable at roughly 7 MB instead of the 30–40 MB a default release profile produces. The tradeoff is compile time — a cold release build takes about six to seven minutes — and the profile applies to every release build in the workspace, not only the portable one.
 
 ## Data and generated files
 
 - The SQLite database is created under the platform-specific Tauri application data directory; the schema is applied from `apps/desktop/src-tauri/migrations/` when the connection opens.
-- `apps/desktop/src-tauri/gen/schemas` and `apps/desktop/dist` are generated and ignored by Git.
+- `apps/desktop/src-tauri/gen/schemas`, `apps/desktop/dist`, `target/`, and the `release/` packaging output are generated and ignored by Git.
 
 ## Brand assets
 

@@ -154,11 +154,19 @@ pnpm dev          # Vite dev server plus the Tauri desktop window
 pnpm dev:web      # browser-only UI, no native shell
 ```
 
-Build an installer for the current platform:
+Build an installer for the current platform (MSI / NSIS, for distribution):
 
 ```bash
 pnpm --filter @dev-workbench/desktop tauri build
 ```
+
+Build the install-free portable Windows executable (recommended for your own machine):
+
+```bash
+pnpm build:portable
+```
+
+The result is `release/Dev Workbench.exe`. Double-click it to run — there is no installation and no administrator prompt, and the only external prerequisite is the Microsoft Edge WebView2 runtime that ships with Windows 10 and 11. The file name carries no version, so a pinned taskbar entry survives a rebuild. See [docs/development.md](docs/development.md#packaging).
 
 ## Quality checks
 
@@ -193,6 +201,7 @@ Pushing a `v*` tag makes [`.github/workflows/release.yml`](.github/workflows/rel
 - `crates/vault`: the vault's cryptography, KDF, page-locked memory, session, and storage
 - `crates/docker`, `crates/git`, `crates/pty`: explicit future native boundaries, with **no claimed implementation**
 - `plugins/*`: reserved plugin package boundaries, **unimplemented**
+- `scripts`: maintenance scripts that cannot be expressed as a root pnpm or Cargo command (today, portable Windows packaging)
 
 ## Documentation
 

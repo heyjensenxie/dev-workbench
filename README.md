@@ -154,11 +154,19 @@ pnpm dev          # Vite 开发服务器 + Tauri 桌面窗口
 pnpm dev:web      # 仅浏览器端界面，不含原生外壳
 ```
 
-生成当前平台的安装包：
+生成当前平台的安装包（MSI / NSIS，用于分发）：
 
 ```bash
 pnpm --filter @dev-workbench/desktop tauri build
 ```
+
+生成免安装的 Windows 便携版单文件应用（自用推荐）：
+
+```bash
+pnpm build:portable
+```
+
+产物为 `release/Dev Workbench.exe`，双击即可运行，无需安装或管理员权限；唯一的外部依赖是 Windows 10/11 自带的 Edge WebView2 运行时。文件名不含版本号，重新打包后任务栏固定项依旧有效。详见 [docs/development.md](docs/development.md#packaging)。
 
 ## 质量检查
 
@@ -193,6 +201,7 @@ cargo check --workspace
 - `crates/vault`：密码库的密码学、KDF、页锁定内存、会话与存储实现
 - `crates/docker`、`crates/git`、`crates/pty`：明确的未来原生边界，**未声明任何已实现能力**
 - `plugins/*`：预留的插件包边界，**未实现**
+- `scripts`：无法用根 pnpm / Cargo 命令表达的维护脚本（当前为 Windows 便携版打包）
 
 ## 文档
 
