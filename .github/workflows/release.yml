@@ -34,7 +34,7 @@ jobs:
           - platform: macos-latest
             args: '--target x86_64-apple-darwin'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Tauri 2 system dependencies, per https://v2.tauri.app/start/prerequisites/
       - name: Install Linux system dependencies
