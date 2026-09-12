@@ -1,0 +1,20 @@
+{
+  "name": "@dev-workbench/desktop",
+  "version": "0.1.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "scripts": {"dev":"vite","build":"vue-tsc --noEmit && vite build","typecheck":"vue-tsc --noEmit","test":"vitest run","tauri":"tauri"},
+  "dependencies": {
+    "@dev-workbench/core":"workspace:*",
+    "@dev-workbench/command":"workspace:*",
+    "@dev-workbench/shared":"workspace:*",
+    "@tauri-apps/api":"^2.8.0",
+    "@tauri-apps/plugin-dialog":"^2.4.0",
+    "lucide-vue-next":"^0.544.0",
+    "pinia":"^3.0.3",
+    "reka-ui":"^2.5.0",
+    "vue":"^3.5.21",
+    "vue-router":"^4.5.1"
+  },
+  "devDependencies": {"@tauri-apps/cli":"^2.8.4","@vitejs/plugin-vue":"^6.0.1","tailwindcss":"^4.1.13","@tailwindcss/vite":"^4.1.13","vite":"^7.1.5","vue-tsc":"^3.0.6","vitest":"^3.2.4"}
+}

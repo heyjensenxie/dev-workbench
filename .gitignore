@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+target/
+coverage/
+# Tauri-generated ACL and capability schemas, recreated by the Tauri CLI on every build
+apps/desktop/src-tauri/gen/schemas/
+
+# Logs
+*.log
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Operating system and editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
+.idea/
+.vscode/
+
+# Agent, IDE, and local tooling configuration kept out of the repository
+.local/
+BOOTSTRAP.md
+.claude/
+.codex/
+.config/opencode/
+.agents/
+.cursor/
+.opencode/
+.windsurf/
+.continue/
+.gemini/
+.qwen/
+.roo/
+.kiro/
+.trae/
+.aider/
+.amazonq/
+.openhands/
+.zed/
+.devcontainer/
+# Keep the repository's own GitHub assets, ignore other local .github content
+.github/*
+!.github/pull_request_template.md

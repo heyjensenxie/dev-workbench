@@ -1,0 +1,27 @@
+[package]
+name = "dev-workbench"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "dev_workbench_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+dirs = "6"
+workbench-process = { path = "../../../crates/process" }
+workbench-system = { path = "../../../crates/system" }
+workbench-network = { path = "../../../crates/network" }
+

@@ -1,0 +1,13 @@
+packages:
+  - apps/*
+  - packages/*
+  - plugins/*
+onlyBuiltDependencies:
+  - esbuild
+  - vue-demi
+confirmModulesPurge: false
+enableGlobalVirtualStore: false
+nodeLinker: hoisted
+allowBuilds:
+  esbuild: true
+  vue-demi: true

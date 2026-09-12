@@ -1,0 +1,1 @@
+{"name":"@dev-workbench/shared","version":"0.1.0-alpha.1","type":"module","exports":"./src/index.ts","scripts":{"typecheck":"tsc --noEmit -p tsconfig.json","test":"vitest run"},"devDependencies":{"typescript":"^5.9.2"}}

@@ -1,0 +1,8 @@
+# Commit and check out every text file with LF so Windows and Unix contributors
+# see no spurious line-ending diffs.
+* text=auto eol=lf
+
+# Binary assets must never be normalized
+*.png binary
+*.ico binary
+*.icns binary

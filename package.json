@@ -1,0 +1,19 @@
+{
+  "name": "dev-workbench",
+  "version": "0.1.0-alpha.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@11.13.1",
+  "scripts": {
+    "dev": "pnpm --filter @dev-workbench/desktop tauri dev",
+    "dev:web": "pnpm --filter @dev-workbench/desktop dev",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "check:rust": "cargo check --workspace"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

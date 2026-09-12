@@ -1,0 +1,9 @@
+[package]
+name="workbench-system"
+version.workspace=true
+edition.workspace=true
+license.workspace=true
+[dependencies]
+serde.workspace=true
+sysinfo="0.37"
+
