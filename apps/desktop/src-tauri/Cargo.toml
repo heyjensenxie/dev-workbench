@@ -20,8 +20,10 @@ reqwest.workspace = true
 uuid.workspace = true
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
-sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "mysql"] }
 dirs = "6"
 workbench-process = { path = "../../../crates/process" }
 workbench-system = { path = "../../../crates/system" }
 workbench-network = { path = "../../../crates/network" }
+workbench-secrets = { path = "../../../crates/secrets" }
+workbench-vault = { path = "../../../crates/vault" }

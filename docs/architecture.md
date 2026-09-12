@@ -47,6 +47,20 @@ in the project they came from.
 
 If a platform denies tree termination, the runtime still stops the service through the child handle it owns, and aborts its log readers instead of waiting on inherited pipe handles.
 
+## Database workbench
+
+`DatabaseWorkbenchService` owns saved connection profiles, the native `query_database` / `list_database_*` calls, and an in-browser preview runtime used when the UI runs without Tauri. SQL analysis lives in `packages/core/src/database.ts` as pure helpers — statement splitting that respects quoted semicolons, destructive-statement detection, read-query detection, and result limits — so the safety rules are unit-tested without a database.
+
+Credentials never reach SQLite: a password goes to the OS credential store through `crates/secrets`, and the connection record only keeps a `secretRef` marker.
+
+## API workbench
+
+`ApiWorkbenchView` composes HTTP requests and drives them through the `utility.api.send` command, which is the only path that reaches the native `reqwest` client. Requests, headers, and bodies are templates: environment variables live in session state and are resolved just before sending, so saved rows in `api_requests` never hold a secret. Saved requests are grouped by `api_modules`, and recent-request history keeps a redacted URL (credentials stripped, token-like query values replaced) so the sidebar never echoes a secret back.
+
+## Localization
+
+The interface ships Chinese and English. `apps/desktop/src/i18n.ts` holds both catalogs and is the single place where locale-neutral identifiers meet copy: `translateDatabaseMessage` maps the codes the native runtime and the browser preview emit (`DATABASE_MESSAGE_CODES` in `packages/shared`), and `translateSqlWarning` maps the safety kinds `packages/core` reports. Text the app does not author — driver and engine errors — is rendered verbatim rather than replaced by a missing key. Registry commands are authored in English, so the command palette maps the ids it can surface to catalog keys instead of showing the registry title. `apps/desktop/src/i18n.test.ts` fails when the catalogs drift apart, when a translation is empty, or when a runtime code loses its label.
+
 ## Data and migrations
 
 `repository::connect` opens SQLite with foreign keys, WAL journaling, and a busy timeout, then applies each schema file in `apps/desktop/src-tauri/migrations/` at most once, recording it in `_migrations`. Every migration runs in a transaction, so a release can add columns without dropping user data.

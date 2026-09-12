@@ -57,8 +57,8 @@ Vitest covers the TypeScript workspace; every package with a `test` script is pi
 | `packages/shared` | Service validation rules, settings parsing, formatting helpers, path handling, structured errors |
 | `packages/command` | Registry, execution, and fuzzy matching |
 | `packages/context` | Observable context state |
-| `packages/core` | Dependency ordering, batch start/stop semantics, catalog persistence, validation, process/port filtering and tree ordering, settings parsing |
-| `apps/desktop` | The workbench and system stores against a fake bridge and a real `createWorkbench` instance |
+| `packages/core` | Dependency ordering, batch start/stop semantics, catalog persistence, validation, process/port filtering and tree ordering, settings parsing, SQL script splitting and destructive-statement detection |
+| `apps/desktop` | The workbench and system stores against a fake bridge and a real `createWorkbench` instance, the database workbench service and its locale-neutral runtime messages, and i18n catalog parity |
 
 Rust tests live next to the code they cover: `manifest` and `scanner` parse fixtures written to a temporary directory, `repository` exercises migrations and CRUD against a temporary SQLite file, and the `process`, `system`, and `network` crates spawn real processes or parse recorded output.
 

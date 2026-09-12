@@ -3,8 +3,24 @@ export type ErrorCode =
   | 'NOT_FOUND'
   | 'CONFLICT'
   | 'NATIVE_ERROR'
+  | 'DATABASE_ERROR'
   | 'COMMAND_ERROR'
   | 'UNKNOWN_ERROR'
+  /** The vault exists but is locked; the UI must return to the unlock screen. */
+  | 'VAULT_LOCKED'
+  /** Wrong master password. The message is always "Incorrect master password." */
+  | 'VAULT_BAD_PASSWORD'
+  /** Too many consecutive failures; the vault refuses attempts for a while. */
+  | 'VAULT_LOCKED_OUT'
+  /** A vault operation failed for some other reason. */
+  | 'VAULT_ERROR'
+
+export * from './database'
+export * from './vault'
+
+// Imported for local use as well as re-exported above: `export *` does not bring
+// names into this module's own scope.
+import { VAULT_AUTO_LOCK_OPTIONS, VAULT_CLIPBOARD_CLEAR_OPTIONS } from './vault'
 
 export interface SerializedAppError {
   code: ErrorCode
@@ -231,6 +247,14 @@ export interface WorkbenchSettings {
   logLimit: number
   /** Ask before terminating a process or freeing a port. */
   confirmBeforeKill: boolean
+  /**
+   * Vault idle timeout in seconds. A preference, not a secret: it says how long
+   * an unlocked vault may sit idle, and is safe to store in the ordinary
+   * workspace database.
+   */
+  vaultAutoLockSeconds: number
+  /** Clipboard auto-clear delay for copied vault secrets, in seconds. */
+  vaultClipboardClearSeconds: number
 }
 
 export const LOG_LIMIT_MIN = 100
@@ -249,6 +273,15 @@ export function parseSettings(raw: Record<string, unknown>): Partial<WorkbenchSe
     settings.logLimit = clampLogLimit(Math.round(raw.logLimit))
   }
   if (typeof raw.confirmBeforeKill === 'boolean') settings.confirmBeforeKill = raw.confirmBeforeKill
+  // Vault preferences are validated against the offered options, so a corrupted
+  // or hand-edited settings row can never install an unsafe timeout (notably a
+  // zero or "never" auto-lock).
+  if (typeof raw.vaultAutoLockSeconds === 'number' && (VAULT_AUTO_LOCK_OPTIONS as readonly number[]).includes(raw.vaultAutoLockSeconds)) {
+    settings.vaultAutoLockSeconds = raw.vaultAutoLockSeconds
+  }
+  if (typeof raw.vaultClipboardClearSeconds === 'number' && (VAULT_CLIPBOARD_CLEAR_OPTIONS as readonly number[]).includes(raw.vaultClipboardClearSeconds)) {
+    settings.vaultClipboardClearSeconds = raw.vaultClipboardClearSeconds
+  }
   return settings
 }
 

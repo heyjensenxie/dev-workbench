@@ -31,6 +31,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0004_api_modules",
         include_str!("../migrations/0004_api_modules.sql"),
     ),
+    (
+        "0005_database_workbench",
+        include_str!("../migrations/0005_database_workbench.sql"),
+    ),
 ];
 
 pub async fn connect(path: &Path) -> Result<SqlitePool, AppError> {

@@ -4,7 +4,7 @@ import { Command, Search } from 'lucide-vue-next'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { workbench } from '../services/workbench'
-import { useI18n } from '../i18n'
+import { useI18n, type MessageKey } from '../i18n'
 import { useWorkbenchStore } from '../stores/workbench'
 
 const props = defineProps<{ open: boolean }>()
@@ -13,16 +13,44 @@ const { t } = useI18n()
 const store = useWorkbenchStore()
 const router = useRouter()
 /** Commands that take no argument, so the palette can run them directly. */
-const inputFreeCommands = new Set(['process.list', 'port.list', 'service.listRunning', 'service.stopEverything'])
+const inputFreeCommands = new Set(['process.list', 'port.list', 'service.listRunning', 'service.stopEverything', 'vault.lock'])
 const utilityCommands = new Set(['utility.sql.open', 'utility.mybatis.restore.open', 'utility.api.open'])
-const paletteCommands = new Set(['project.open', 'project.refresh', 'service.startAll', 'service.stopAll', ...inputFreeCommands, ...utilityCommands])
+const databaseCommands = new Set(['database.open'])
+const vaultCommands = new Set(['vault.open'])
+const paletteCommands = new Set(['project.open', 'project.refresh', 'service.startAll', 'service.stopAll', ...inputFreeCommands, ...utilityCommands, ...databaseCommands, ...vaultCommands])
+/** Localized labels for registry commands, which are authored in English. */
+const commandLabels: Record<string, { title: MessageKey; category?: MessageKey }> = {
+  'project.open': { title: 'commandProjectOpen', category: 'categoryProject' },
+  'project.refresh': { title: 'commandProjectRefresh', category: 'categoryProject' },
+  'service.startAll': { title: 'commandServiceStartAll', category: 'categoryServices' },
+  'service.stopAll': { title: 'commandServiceStopAll', category: 'categoryServices' },
+  'service.stopEverything': { title: 'commandServiceStopEverything', category: 'categoryServices' },
+  'service.listRunning': { title: 'commandServiceListRunning', category: 'categoryServices' },
+  'process.list': { title: 'commandProcessList', category: 'categorySystem' },
+  'port.list': { title: 'commandPortList', category: 'categorySystem' },
+  'utility.sql.open': { title: 'commandSqlOpen', category: 'categoryUtilitiesDatabase' },
+  'utility.mybatis.restore.open': { title: 'commandMybatisOpen', category: 'categoryUtilitiesDatabase' },
+  'utility.api.open': { title: 'commandApiOpen', category: 'categoryUtilitiesApi' },
+  'database.open': { title: 'commandDatabaseOpen', category: 'categoryDatabase' },
+  // Only two vault commands exist, and neither can return a secret.
+  'vault.open': { title: 'commandVaultOpen', category: 'categorySecurity' },
+  'vault.lock': { title: 'commandVaultLock', category: 'categorySecurity' },
+}
+function commandTitle(id: string, fallback: string): string {
+  const keys = commandLabels[id]
+  return keys ? t(keys.title) : fallback
+}
+function commandCategory(id: string, fallback: string | undefined): string | undefined {
+  const keys = commandLabels[id]
+  return keys?.category ? t(keys.category) : fallback
+}
 const query = ref('')
 const input = ref<HTMLInputElement>()
 const selectedIndex = ref(0)
 const results = computed(() => {
   const generic = workbench.commands.list()
     .filter((item) => paletteCommands.has(item.id))
-    .map((item) => ({ id: item.id, title: item.title, category: item.category }))
+    .map((item) => ({ id: item.id, title: commandTitle(item.id, item.title), category: commandCategory(item.id, item.category) }))
   const dynamic = store.services.flatMap((service) => {
     const status = store.stateOf(service.id).status
     const actions = status === 'running' ? ['service.restart', 'service.stop'] : ['service.start']
@@ -62,6 +90,10 @@ async function execute(id: string): Promise<void> {
   } else if (utilityCommands.has(id)) {
     const utilityId = await workbench.commands.execute<undefined, string>(id, undefined, workbench.commandContext)
     await router.push(utilityId === 'api' ? { name: 'api' } : { name: 'utilities', query: { tool: utilityId } })
+  } else if (databaseCommands.has(id)) {
+    await router.push({ name: 'database' })
+  } else if (vaultCommands.has(id)) {
+    await router.push({ name: 'vault' })
   } else if (inputFreeCommands.has(id)) {
     await workbench.commands.execute(id, undefined, workbench.commandContext)
   }

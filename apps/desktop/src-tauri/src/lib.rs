@@ -1,9 +1,11 @@
 mod api;
+mod database;
 mod error;
 mod manifest;
 mod models;
 mod repository;
 mod scanner;
+mod vault;
 
 use error::AppError;
 use models::{
@@ -302,6 +304,58 @@ async fn set_setting(
 }
 
 #[tauri::command]
+async fn test_database_connection(
+    config: database::DatabaseConnectionConfig,
+) -> Result<database::ConnectionTestResult, AppError> {
+    database::test_connection(config).await
+}
+
+#[tauri::command]
+async fn list_database_databases(
+    config: database::DatabaseConnectionConfig,
+) -> Result<Vec<database::DatabaseInfo>, AppError> {
+    database::list_databases(config).await
+}
+
+#[tauri::command]
+async fn list_database_tables(
+    config: database::DatabaseConnectionConfig,
+    database: String,
+) -> Result<Vec<database::TableInfo>, AppError> {
+    database::list_tables(config, database).await
+}
+
+#[tauri::command]
+async fn query_database(
+    config: database::DatabaseConnectionConfig,
+    sql: String,
+) -> Result<database::QueryResult, AppError> {
+    database::query(config, sql).await
+}
+
+#[tauri::command]
+fn store_database_password(connection_id: String, password: String) -> Result<(), AppError> {
+    workbench_secrets::write(
+        &format!("DevWorkbench/Database/{connection_id}"),
+        "password",
+        &password,
+    )
+    .map_err(AppError::Validation)
+}
+
+#[tauri::command]
+fn read_database_password(connection_id: String) -> Result<Option<String>, AppError> {
+    workbench_secrets::read(&format!("DevWorkbench/Database/{connection_id}"))
+        .map_err(AppError::Validation)
+}
+
+#[tauri::command]
+fn delete_database_password(connection_id: String) -> Result<(), AppError> {
+    workbench_secrets::delete(&format!("DevWorkbench/Database/{connection_id}"))
+        .map_err(AppError::Validation)
+}
+
+#[tauri::command]
 async fn http_request(request: api::HttpRequest) -> Result<api::HttpResponse, AppError> {
     Ok(api::send(request).await?)
 }
@@ -372,10 +426,25 @@ pub fn run() {
             let db_path = app_data.join("workbench.sqlite3");
             let database = tauri::async_runtime::block_on(repository::connect(&db_path))
                 .map_err(|error| Box::<dyn std::error::Error>::from(error.to_string()))?;
+
+            // The vault lives in its own database file, separate from the
+            // workspace database, and is managed by its own service. It shares no
+            // table, no connection, and no trust boundary with anything above.
+            let vault_path = app_data.join("vault.db");
+            let vault_service = tauri::async_runtime::block_on(workbench_vault::VaultService::open(
+                &vault_path,
+            ))
+            .map_err(|error| Box::<dyn std::error::Error>::from(error.to_string()))?;
+
             app.manage(AppState {
                 database,
                 processes: ProcessRuntime::new(),
             });
+            // The safety copy taken before a restore-replace is written beside the
+            // vault, so it travels with the application data rather than with
+            // whatever directory the process was started from.
+            app.manage(vault::VaultState::new(vault_service, app_data.clone()));
+            vault::spawn_auto_lock_supervisor(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -398,13 +467,43 @@ pub fn run() {
             kill_port,
             get_settings,
             set_setting,
+            test_database_connection,
+            list_database_databases,
+            list_database_tables,
+            query_database,
+            store_database_password,
+            read_database_password,
+            delete_database_password,
             http_request,
             list_api_modules,
             save_api_module,
             delete_api_module,
             list_api_requests,
             save_api_request,
-            delete_api_request
+            delete_api_request,
+            vault::vault_status,
+            vault::vault_create,
+            vault::vault_unlock,
+            vault::vault_lock,
+            vault::vault_touch,
+            vault::vault_set_auto_lock,
+            vault::vault_list_items,
+            vault::vault_get_item,
+            vault::vault_create_item,
+            vault::vault_update_item,
+            vault::vault_delete_item,
+            vault::vault_destroy,
+            vault::vault_set_favorite,
+            vault::vault_reveal_field,
+            vault::vault_copy_item_field,
+            vault::vault_change_master_password,
+            vault::vault_recalibrate,
+            vault::vault_export_backup,
+            vault::vault_import_backup,
+            vault::vault_generate_password,
+            vault::vault_copy_secret,
+            vault::vault_clear_clipboard,
+            vault::vault_open_url
         ])
         .build(tauri::generate_context!())
         .expect("failed to build Dev Workbench");
@@ -412,6 +511,12 @@ pub fn run() {
         if matches!(event, tauri::RunEvent::ExitRequested { .. }) {
             let processes = handle.state::<AppState>().processes.clone();
             tauri::async_runtime::block_on(processes.stop_all());
+            // Wipe the vault master key and any password left on the clipboard
+            // rather than relying on process teardown to do it.
+            if let Some(vault) = handle.try_state::<vault::VaultState>() {
+                vault::lock_on_exit(&vault);
+            }
+            let _ = workbench_vault::clipboard::clear();
         }
     });
 }

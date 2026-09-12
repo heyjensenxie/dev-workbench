@@ -1,8 +1,49 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { listen } from '@tauri-apps/api/event'
-import type { NativeBridge } from '@dev-workbench/core'
-import type { ApiModule, DevService, HttpRequest, HttpResponse, PortInfo, ProcessInfo, Project, ProjectContext, RunningService, SavedApiRequest, ServiceLogEvent, ServiceState } from '@dev-workbench/shared'
+import type { NativeBridge, VaultBridge } from '@dev-workbench/core'
+import type { ApiModule, ConnectionTestResult, DatabaseConnectionConfig, DatabaseInfo, DevService, HttpRequest, HttpResponse, PortInfo, ProcessInfo, Project, ProjectContext, QueryResult, RunningService, SavedApiRequest, ServiceLogEvent, ServiceState, TableInfo, VaultBackupSummary, VaultGeneratorOptions, VaultImportOutcome, VaultItem, VaultItemPayload, VaultItemSummary, VaultLockReason, VaultStatus } from '@dev-workbench/shared'
+
+/**
+ * The vault bridge. Kept as its own object so that vault access is always an
+ * explicit, greppable call (`nativeBridge.vault.…`) and cannot be mistaken for
+ * ordinary workspace data access.
+ *
+ * Note that no method here can return a key, a list of decrypted secrets, or a
+ * plaintext export. The master password is passed as a transient argument to
+ * `unlock`/`create` and is never stored on this side.
+ */
+const vault: VaultBridge = {
+  status: () => invoke<VaultStatus>('vault_status'),
+  create: (masterPassword: string) => invoke<VaultStatus>('vault_create', { masterPassword }),
+  unlock: (masterPassword: string) => invoke<VaultStatus>('vault_unlock', { masterPassword }),
+  lock: () => invoke<boolean>('vault_lock'),
+  touch: () => invoke<void>('vault_touch'),
+  setAutoLock: (seconds: number) => invoke<void>('vault_set_auto_lock', { seconds }),
+  listItems: () => invoke<VaultItemSummary[]>('vault_list_items'),
+  getItem: async (id: string) => (await invoke<VaultItem | null>('vault_get_item', { id })) ?? undefined,
+  createItem: (payload: VaultItemPayload) => invoke<VaultItem>('vault_create_item', { payload }),
+  updateItem: (id: string, payload: VaultItemPayload) => invoke<VaultItem>('vault_update_item', { id, payload }),
+  deleteItem: (id: string) => invoke<boolean>('vault_delete_item', { id }),
+  destroy: () => invoke<void>('vault_destroy'),
+  setFavorite: (id: string, favorite: boolean) => invoke<VaultItem>('vault_set_favorite', { id, favorite }),
+  revealField: async (id: string, fieldIndex?: number) =>
+    (await invoke<string | null>('vault_reveal_field', { id, fieldIndex: fieldIndex ?? null })) ?? undefined,
+  copyItemField: (id: string, fieldIndex: number | undefined, clearAfterSeconds: number) =>
+    invoke<void>('vault_copy_item_field', { id, fieldIndex: fieldIndex ?? null, clearAfterSeconds }),
+  changeMasterPassword: (currentPassword: string, newPassword: string) =>
+    invoke<void>('vault_change_master_password', { currentPassword, newPassword }),
+  recalibrate: (masterPassword: string) => invoke<VaultStatus>('vault_recalibrate', { masterPassword }),
+  exportBackup: (path: string) => invoke<VaultBackupSummary>('vault_export_backup', { path }),
+  importBackup: (path: string, replaceExisting: boolean) =>
+    invoke<VaultImportOutcome>('vault_import_backup', { path, replaceExisting }),
+  generatePassword: (options?: Partial<VaultGeneratorOptions>) =>
+    invoke<string>('vault_generate_password', { options: options ?? null }),
+  copySecret: (value: string, clearAfterSeconds: number) =>
+    invoke<void>('vault_copy_secret', { value, clearAfterSeconds }),
+  clearClipboard: () => invoke<void>('vault_clear_clipboard'),
+  openUrl: (url: string) => invoke<void>('vault_open_url', { url }),
+}
 
 class TauriNativeBridge implements NativeBridge {
   listProjects = () => invoke<Project[]>('list_projects')
@@ -31,6 +72,14 @@ class TauriNativeBridge implements NativeBridge {
   listApiRequests = (moduleId?: string) => invoke<SavedApiRequest[]>('list_api_requests', { moduleId })
   saveApiRequest = (request: SavedApiRequest) => invoke<SavedApiRequest>('save_api_request', { request })
   deleteApiRequest = (requestId: string) => invoke<boolean>('delete_api_request', { requestId })
+  testDatabaseConnection = (config: DatabaseConnectionConfig) => invoke<ConnectionTestResult>('test_database_connection', { config })
+  listDatabaseDatabases = (config: DatabaseConnectionConfig) => invoke<DatabaseInfo[]>('list_database_databases', { config })
+  listDatabaseTables = (config: DatabaseConnectionConfig, database: string) => invoke<TableInfo[]>('list_database_tables', { config, database })
+  queryDatabase = (config: DatabaseConnectionConfig, sql: string) => invoke<QueryResult>('query_database', { config, sql })
+  storeDatabasePassword = (connectionId: string, password: string) => invoke<void>('store_database_password', { connectionId, password })
+  readDatabasePassword = async (connectionId: string) => (await invoke<string | null>('read_database_password', { connectionId })) ?? undefined
+  deleteDatabasePassword = (connectionId: string) => invoke<void>('delete_database_password', { connectionId })
+  vault = vault
 }
 
 export const nativeBridge = new TauriNativeBridge()
@@ -41,3 +90,11 @@ export const subscribeToServiceLogs = (handler: (event: ServiceLogEvent) => void
 /** Fires when a started service ends, however it ended. */
 export const subscribeToServiceExit = (handler: (serviceId: string) => void): Promise<UnlistenFn> =>
   listen<string>('service-exit', ({ payload }) => handler(payload))
+
+/**
+ * Fires when the native vault supervisor locks the vault — on idle timeout, or
+ * on resuming after the machine slept. The UI must drop every decrypted value it
+ * is holding when this arrives.
+ */
+export const subscribeToVaultLock = (handler: (reason: VaultLockReason) => void): Promise<UnlistenFn> =>
+  listen<VaultLockReason>('vault-locked', ({ payload }) => handler(payload))

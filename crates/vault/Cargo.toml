@@ -1,0 +1,33 @@
+[package]
+name = "workbench-vault"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Isolated encrypted credential vault. Deny-by-default boundary: shares no trust domain with workspace data."
+
+[dependencies]
+# Mature, maintained cryptography only. No primitives are implemented in this crate.
+argon2 = { version = "0.5", features = ["std"] }
+chacha20poly1305 = "0.10"
+rand = "0.8"
+zeroize = { version = "1", features = ["derive"] }
+secrecy = "0.10"
+base64 = "0.22"
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync", "time", "macros", "rt"] }
+uuid.workspace = true
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
+  "Win32_System_Threading",
+] }
+
+# `mlock` / `munlock`, used to keep key material out of the swap file.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

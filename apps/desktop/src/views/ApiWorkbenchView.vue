@@ -10,8 +10,7 @@ type ResponseTab = 'pretty' | 'raw' | 'headers'
 interface KeyValueRow { key: string; value: string; enabled: boolean }
 interface RequestHistory { method: HttpMethod; url: string; status: number; durationMs: number; at: number }
 
-const { locale } = useI18n()
-const isZh = computed(() => locale.value === 'zh-CN')
+const { t } = useI18n()
 const method = ref<HttpMethod>('GET')
 const url = ref('https://httpbin.org/get')
 const activeTab = ref<ApiTab>('params')
@@ -61,7 +60,7 @@ function parseEnvironment(): Record<string, string> {
     const trimmed = line.trim()
     if (!trimmed || trimmed.startsWith('#')) continue
     const separator = trimmed.indexOf('=')
-    if (separator <= 0) throw new Error(isZh.value ? `环境变量格式错误：${trimmed}` : `Invalid environment variable: ${trimmed}`)
+    if (separator <= 0) throw new Error(t('apiErrorInvalidEnvVar', { line: trimmed }))
     const key = trimmed.slice(0, separator).trim()
     values[key] = trimmed.slice(separator + 1).trim().replace(/^(['"])(.*)\1$/, '$2')
   }
@@ -69,7 +68,7 @@ function parseEnvironment(): Record<string, string> {
 }
 function resolveVariables(value: string, values: Record<string, string>): string {
   return value.replace(/\{\{\s*([A-Za-z_][\w.-]*)\s*\}\}/g, (full, key: string) => {
-    if (!(key in values)) throw new Error(isZh.value ? `未定义环境变量：${key}` : `Environment variable is not defined: ${key}`)
+    if (!(key in values)) throw new Error(t('apiErrorUndefinedEnvVar', { name: key }))
     return values[key]!
   })
 }
@@ -115,7 +114,7 @@ function restoreSavedUrl(value: string): void {
 async function loadSavedRequests(): Promise<void> {
   try {
     savedRequests.value = await workbench.commands.execute<string | undefined, SavedApiRequest[]>('api.request.list', selectedModuleId.value, workbench.commandContext)
-  } catch (cause) { error.value = cause instanceof Error ? cause.message : (isZh.value ? '接口列表加载失败' : 'Could not load saved requests') }
+  } catch (cause) { error.value = cause instanceof Error ? cause.message : t('apiErrorLoadRequests') }
 }
 async function selectModule(moduleId?: string): Promise<void> {
   selectedModuleId.value = moduleId
@@ -129,18 +128,18 @@ async function saveModule(): Promise<void> {
     modules.value = [module, ...modules.value.filter((item) => item.id !== module.id)]
     moduleName.value = ''
     await selectModule(module.id)
-  } catch (cause) { error.value = cause instanceof Error ? cause.message : (isZh.value ? '模块保存失败' : 'Could not save module') }
+  } catch (cause) { error.value = cause instanceof Error ? cause.message : t('apiErrorSaveModule') }
 }
 async function deleteModule(module: ApiModule): Promise<void> {
   try {
     await workbench.commands.execute<string, boolean>('api.module.delete', module.id, workbench.commandContext)
     modules.value = modules.value.filter((item) => item.id !== module.id)
     await selectModule(selectedModuleId.value === module.id ? undefined : selectedModuleId.value)
-  } catch (cause) { error.value = cause instanceof Error ? cause.message : (isZh.value ? '模块删除失败' : 'Could not delete module') }
+  } catch (cause) { error.value = cause instanceof Error ? cause.message : t('apiErrorDeleteModule') }
 }
 async function saveRequest(): Promise<void> {
   const name = saveName.value.trim()
-  if (!name) { error.value = isZh.value ? '请先填写接口名称' : 'Enter a request name before saving'; return }
+  if (!name) { error.value = t('apiErrorRequestNameRequired'); return }
   try {
     const existing = savedRequests.value.find((item) => item.id === currentRequestId.value)
     const saved = await workbench.commands.execute<SavedApiRequest, SavedApiRequest>('api.request.save', {
@@ -160,7 +159,7 @@ async function saveRequest(): Promise<void> {
     saveState.value = 'saved'
     window.setTimeout(() => { saveState.value = 'idle' }, 1600)
     error.value = ''
-  } catch (cause) { error.value = cause instanceof Error ? cause.message : (isZh.value ? '接口保存失败' : 'Could not save request') }
+  } catch (cause) { error.value = cause instanceof Error ? cause.message : t('apiErrorSaveRequest') }
 }
 function loadSavedRequest(item: SavedApiRequest): void {
   currentRequestId.value = item.id
@@ -178,7 +177,7 @@ async function deleteSavedRequest(item: SavedApiRequest): Promise<void> {
     await workbench.commands.execute<string, boolean>('api.request.delete', item.id, workbench.commandContext)
     savedRequests.value = savedRequests.value.filter((request) => request.id !== item.id)
     if (currentRequestId.value === item.id) { currentRequestId.value = undefined; saveName.value = '' }
-  } catch (cause) { error.value = cause instanceof Error ? cause.message : (isZh.value ? '接口删除失败' : 'Could not delete request') }
+  } catch (cause) { error.value = cause instanceof Error ? cause.message : t('apiErrorDeleteRequest') }
 }
 function clearResponse(): void { response.value = undefined; responseTab.value = 'pretty' }
 async function sendRequest(): Promise<void> {
@@ -189,12 +188,12 @@ async function sendRequest(): Promise<void> {
     const historyUrl = sanitizeHistoryUrl(url.value.trim())
     history.value = [{ method: request.method, url: historyUrl, status: response.value.status, durationMs: response.value.durationMs, at: Date.now() }, ...history.value.filter((item) => item.url !== historyUrl || item.method !== request.method)].slice(0, 10)
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : (isZh.value ? '请求失败' : 'Request failed')
+    error.value = cause instanceof Error ? cause.message : t('apiErrorRequestFailed')
   } finally { loading.value = false }
 }
 function formatBody(): void {
   error.value = ''
-  try { body.value = JSON.stringify(JSON.parse(body.value) as unknown, null, 2) } catch { error.value = isZh.value ? 'Body 不是有效 JSON' : 'Body is not valid JSON' }
+  try { body.value = JSON.stringify(JSON.parse(body.value) as unknown, null, 2) } catch { error.value = t('apiErrorInvalidJson') }
 }
 function loadHistory(item: RequestHistory): void { method.value = item.method; url.value = item.url; response.value = undefined; error.value = '' }
 function clearHistory(): void { history.value = [] }
@@ -209,36 +208,36 @@ function sanitizeHistoryUrl(value: string): string {
 }
 async function copy(value: string): Promise<void> {
   if (!value) return
-  try { await navigator.clipboard.writeText(value); copied.value = true; window.setTimeout(() => { copied.value = false }, 1200) } catch { error.value = isZh.value ? '剪贴板不可用' : 'Clipboard is unavailable' }
+  try { await navigator.clipboard.writeText(value); copied.value = true; window.setTimeout(() => { copied.value = false }, 1200) } catch { error.value = t('apiErrorClipboard') }
 }
 onMounted(async () => {
-  try { modules.value = await workbench.commands.execute<undefined, ApiModule[]>('api.module.list', undefined, workbench.commandContext) } catch (cause) { error.value = cause instanceof Error ? cause.message : (isZh.value ? '模块加载失败' : 'Could not load modules') }
+  try { modules.value = await workbench.commands.execute<undefined, ApiModule[]>('api.module.list', undefined, workbench.commandContext) } catch (cause) { error.value = cause instanceof Error ? cause.message : t('apiErrorLoadModules') }
   await loadSavedRequests()
 })
 </script>
 
 <template>
   <section class="view api-view">
-    <header class="view-header api-header"><div><p class="eyebrow">{{ isZh ? 'API 开发工作台' : 'API DEVELOPMENT WORKSPACE' }}</p><h1>API Workbench</h1><p>{{ isZh ? '编辑、发送和检查 HTTP 请求；接口保存为模板，环境变量值不会落库。' : 'Compose, send and inspect HTTP requests. Saved interfaces keep templates, never environment values.' }}</p></div><span class="api-local-badge"><span />{{ isZh ? '本地请求控制' : 'LOCAL REQUEST CONTROL' }}</span></header>
+    <header class="view-header api-header"><div><p class="eyebrow">{{ t('apiKicker') }}</p><h1>{{ t('apiWorkbench') }}</h1><p>{{ t('apiSubtitle') }}</p></div><span class="api-local-badge"><span />{{ t('apiLocalBadge') }}</span></header>
     <div class="api-layout" :class="{ 'api-sidebar-collapsed': apiSidebarCollapsed }">
       <aside class="api-sidebar" :class="{ collapsed: apiSidebarCollapsed }">
-        <button class="api-sidebar-toggle icon-button" type="button" :aria-label="apiSidebarCollapsed ? (isZh ? '展开接口资源栏' : 'Expand API sidebar') : (isZh ? '收起接口资源栏' : 'Collapse API sidebar')" :title="apiSidebarCollapsed ? (isZh ? '展开接口资源栏' : 'Expand API sidebar') : (isZh ? '收起接口资源栏' : 'Collapse API sidebar')" @click="toggleApiSidebar"><ChevronRight v-if="apiSidebarCollapsed" :size="15" /><ChevronLeft v-else :size="15" /></button>
+        <button class="api-sidebar-toggle icon-button" type="button" :aria-label="apiSidebarCollapsed ? t('apiExpandSidebar') : t('apiCollapseSidebar')" :title="apiSidebarCollapsed ? t('apiExpandSidebar') : t('apiCollapseSidebar')" @click="toggleApiSidebar"><ChevronRight v-if="apiSidebarCollapsed" :size="15" /><ChevronLeft v-else :size="15" /></button>
         <div v-if="!apiSidebarCollapsed" class="api-sidebar-content">
-        <button class="primary api-new-button" @click="newRequest"><Plus :size="14" />{{ isZh ? '新建请求' : 'New request' }}</button>
-        <div class="api-side-section api-modules"><div class="api-side-heading"><span>{{ isZh ? '接口模块' : 'API modules' }}</span><small>{{ modules.length }}</small></div><div class="api-module-create"><input v-model="moduleName" class="utility-input" :placeholder="isZh ? '新模块名称' : 'New module name'" @keydown.enter="saveModule" /><button class="icon-button" :aria-label="isZh ? '新增模块' : 'Add module'" @click="saveModule"><Plus :size="13" /></button></div><button class="api-module-item" :class="{ active: !selectedModuleId }" @click="selectModule()"><span>{{ isZh ? '全部接口' : 'All requests' }}</span><small>{{ selectedModuleId ? '' : savedRequests.length }}</small></button><div v-for="module in modules" :key="module.id" class="api-module-row"><button class="api-module-item" :class="{ active: selectedModuleId === module.id }" @click="selectModule(module.id)"><span>{{ module.name }}</span><small>{{ selectedModuleId === module.id ? savedRequests.length : '' }}</small></button><button class="icon-button api-module-delete" :aria-label="isZh ? `删除模块 ${module.name}` : `Delete module ${module.name}`" @click="deleteModule(module)"><Trash2 :size="12" /></button></div><p v-if="!modules.length" class="api-empty">{{ isZh ? '先创建一个模块来整理接口。' : 'Create a module to organize requests.' }}</p></div>
-        <div class="api-side-section"><div class="api-side-heading"><span>{{ isZh ? '环境' : 'Environment' }}</span><small>{{ environment }}</small></div><input v-model="environment" class="utility-input" :placeholder="isZh ? '环境名称' : 'Environment name'" /><textarea v-model="environmentText" class="api-env-editor" spellcheck="false" placeholder="API_BASE_URL=https://api.example.com&#10;TOKEN=…" /><p>{{ isZh ? '变量仅存在当前会话，可在 URL、Headers、Body 中使用 &#123;&#123;TOKEN&#125;&#125;。保存接口时只保留模板，不保存变量值。' : 'Variables stay in this session. Saved requests keep templates, never environment values.' }}</p></div>
-        <div class="api-side-section api-saved"><div class="api-side-heading"><span><Send :size="13" />{{ isZh ? '已保存接口' : 'Saved requests' }}</span><small>{{ savedRequests.length }}</small></div><div v-for="item in savedRequests" :key="item.id" class="api-saved-item" :class="{ active: currentRequestId === item.id }" role="button" tabindex="0" @click="loadSavedRequest(item)" @keydown.enter="loadSavedRequest(item)"><strong :class="`method-${item.method.toLowerCase()}`">{{ item.method }}</strong><span>{{ item.name }}</span><small>{{ item.url }}</small><button class="icon-button" :aria-label="isZh ? `删除接口 ${item.name}` : `Delete request ${item.name}`" @click.stop="deleteSavedRequest(item)"><Trash2 :size="12" /></button></div><p v-if="!savedRequests.length" class="api-empty">{{ isZh ? '当前模块还没有保存接口。' : 'No saved requests in this module.' }}</p></div>
-        <div class="api-side-section api-history"><div class="api-side-heading"><span><Clock3 :size="13" />{{ isZh ? '最近请求' : 'Recent requests' }}</span><button v-if="history.length" class="icon-button" :aria-label="isZh ? '清除历史' : 'Clear history'" @click="clearHistory"><Trash2 :size="13" /></button></div><button v-for="item in history" :key="`${item.method}-${item.at}`" class="api-history-item" @click="loadHistory(item)"><strong :class="`method-${item.method.toLowerCase()}`">{{ item.method }}</strong><span>{{ item.url }}</span><small :class="`status-${item.status >= 400 ? 'danger' : 'success'}`">{{ item.status }} · {{ item.durationMs }}ms</small></button><p v-if="!history.length" class="api-empty">{{ isZh ? '发送请求后显示摘要。' : 'Request summaries appear here after sending.' }}</p></div>
+        <button class="primary api-new-button" @click="newRequest"><Plus :size="14" />{{ t('apiNewRequest') }}</button>
+        <div class="api-side-section api-modules"><div class="api-side-heading"><span>{{ t('apiModules') }}</span><small>{{ modules.length }}</small></div><div class="api-module-create"><input v-model="moduleName" class="utility-input" :placeholder="t('apiNewModulePlaceholder')" @keydown.enter="saveModule" /><button class="icon-button" :aria-label="t('apiAddModule')" @click="saveModule"><Plus :size="13" /></button></div><button class="api-module-item" :class="{ active: !selectedModuleId }" @click="selectModule()"><span>{{ t('apiAllRequests') }}</span><small>{{ selectedModuleId ? '' : savedRequests.length }}</small></button><div v-for="module in modules" :key="module.id" class="api-module-row"><button class="api-module-item" :class="{ active: selectedModuleId === module.id }" @click="selectModule(module.id)"><span>{{ module.name }}</span><small>{{ selectedModuleId === module.id ? savedRequests.length : '' }}</small></button><button class="icon-button api-module-delete" :aria-label="t('apiDeleteModule', { name: module.name })" @click="deleteModule(module)"><Trash2 :size="12" /></button></div><p v-if="!modules.length" class="api-empty">{{ t('apiModulesEmpty') }}</p></div>
+        <div class="api-side-section"><div class="api-side-heading"><span>{{ t('apiEnvironment') }}</span><small>{{ environment }}</small></div><input v-model="environment" class="utility-input" :placeholder="t('apiEnvironmentPlaceholder')" /><textarea v-model="environmentText" class="api-env-editor" spellcheck="false" placeholder="API_BASE_URL=https://api.example.com&#10;TOKEN=…" /><p>{{ t('apiEnvironmentHint') }}</p></div>
+        <div class="api-side-section api-saved"><div class="api-side-heading"><span><Send :size="13" />{{ t('apiSavedRequests') }}</span><small>{{ savedRequests.length }}</small></div><div v-for="item in savedRequests" :key="item.id" class="api-saved-item" :class="{ active: currentRequestId === item.id }" role="button" tabindex="0" @click="loadSavedRequest(item)" @keydown.enter="loadSavedRequest(item)"><strong :class="`method-${item.method.toLowerCase()}`">{{ item.method }}</strong><span>{{ item.name }}</span><small>{{ item.url }}</small><button class="icon-button" :aria-label="t('apiDeleteRequest', { name: item.name })" @click.stop="deleteSavedRequest(item)"><Trash2 :size="12" /></button></div><p v-if="!savedRequests.length" class="api-empty">{{ t('apiNoSavedRequests') }}</p></div>
+        <div class="api-side-section api-history"><div class="api-side-heading"><span><Clock3 :size="13" />{{ t('apiRecentRequests') }}</span><button v-if="history.length" class="icon-button" :aria-label="t('apiClearHistory')" @click="clearHistory"><Trash2 :size="13" /></button></div><button v-for="item in history" :key="`${item.method}-${item.at}`" class="api-history-item" @click="loadHistory(item)"><strong :class="`method-${item.method.toLowerCase()}`">{{ item.method }}</strong><span>{{ item.url }}</span><small :class="`status-${item.status >= 400 ? 'danger' : 'success'}`">{{ item.status }} · {{ item.durationMs }}ms</small></button><p v-if="!history.length" class="api-empty">{{ t('apiHistoryEmpty') }}</p></div>
         </div>
       </aside>
       <main class="api-main">
-        <div class="api-request-bar"><select v-model="method" class="api-method" aria-label="HTTP method"><option v-for="item in (['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as HttpMethod[])" :key="item">{{ item }}</option></select><input v-model="url" class="utility-input api-url" spellcheck="false" placeholder="https://api.example.com/users" @keydown.ctrl.enter.prevent="sendRequest" @keydown.meta.enter.prevent="sendRequest" /><button class="primary api-send-button" :disabled="loading" @click="sendRequest"><Send :size="14" />{{ loading ? (isZh ? '请求中…' : 'Sending…') : (isZh ? '发送' : 'Send') }}</button></div>
-        <div class="api-save-bar"><input v-model="saveName" class="utility-input" :placeholder="isZh ? '接口名称，例如：创建用户' : 'Request name, e.g. Create user'" @keydown.enter="saveRequest" /><button class="ghost-button" @click="saveRequest"><Check :size="13" />{{ isZh ? (currentRequestId ? '覆盖保存' : '保存接口') : (currentRequestId ? 'Update' : 'Save') }}</button><span class="api-save-target">{{ selectedModuleId ? modules.find((item) => item.id === selectedModuleId)?.name : (isZh ? '未分组' : 'Ungrouped') }}</span><span v-if="saveState === 'saved'" class="api-save-feedback"><Check :size="12" />{{ isZh ? '已保存' : 'Saved' }}</span></div>
-        <div class="api-tabs" role="tablist"><button v-for="tab in (['params', 'headers', 'body'] as ApiTab[])" :key="tab" :class="{ active: activeTab === tab }" role="tab" :aria-selected="activeTab === tab" @click="activeTab = tab">{{ tab === 'params' ? 'Params' : tab === 'headers' ? `Headers (${headerRows.filter((row) => row.enabled && row.key).length})` : 'Body' }}</button></div>
-        <section v-if="activeTab === 'params' || activeTab === 'headers'" class="api-editor-panel"><div class="api-editor-heading"><div><h2>{{ activeTab === 'params' ? (isZh ? 'Query 参数' : 'Query parameters') : 'Headers' }}</h2><p>{{ isZh ? '勾选后才会发送，变量会在发送前解析。' : 'Only enabled rows are sent; variables resolve just before sending.' }}</p></div><button class="ghost-button" @click="addRow(activeTab === 'params' ? queryRows : headerRows)"><Plus :size="13" />{{ isZh ? '添加' : 'Add' }}</button></div><div class="api-kv-head"><span /><span>{{ isZh ? '名称' : 'Name' }}</span><span>{{ isZh ? '值' : 'Value' }}</span><span /></div><div v-for="(row, index) in (activeTab === 'params' ? queryRows : headerRows)" :key="`${activeTab}-${index}`" class="api-kv-row"><input v-model="row.enabled" type="checkbox" :aria-label="isZh ? '启用此行' : 'Enable row'" /><input v-model="row.key" class="utility-input" :placeholder="activeTab === 'params' ? 'userId' : 'Authorization'" /><input v-model="row.value" class="utility-input" :placeholder="activeTab === 'params' ? '1001' : 'Bearer &#123;&#123;TOKEN&#125;&#125;'" /><button class="icon-button" :aria-label="isZh ? '删除此行' : 'Remove row'" @click="removeRow(activeTab === 'params' ? queryRows : headerRows, index)"><X :size="13" /></button></div></section>
-        <section v-else class="api-editor-panel api-body-panel"><div class="api-editor-heading"><div><h2>JSON Body</h2><p>{{ isZh ? 'Body 在发送前只做变量替换，不会自动修复 JSON。' : 'Variables resolve before sending; JSON is never silently repaired.' }}</p></div><button class="ghost-button" @click="formatBody">{{ isZh ? '格式化 JSON' : 'Format JSON' }}</button></div><textarea v-model="body" class="api-body-editor" spellcheck="false" placeholder="{&#10;  &quot;name&quot;: &quot;Jensen&quot;&#10;}" /></section>
-        <div class="api-request-options"><label>{{ isZh ? '超时' : 'Timeout' }}<input v-model.number="timeoutMs" class="utility-input timeout-input" type="number" min="1000" max="120000" step="1000" /> ms</label><span class="api-shortcut">Ctrl / ⌘ + Enter {{ isZh ? '发送' : 'send' }}</span></div>
-        <section class="api-response-panel"><div class="api-response-heading"><div><span class="section-kicker">{{ isZh ? '响应' : 'Response' }}</span><strong v-if="response" :class="`response-status ${responseTone}`">{{ response.status }} {{ response.statusText }}</strong><span v-else class="api-no-response">{{ isZh ? '等待请求结果' : 'Waiting for a request' }}</span></div><div v-if="response" class="api-response-meta"><span>{{ response.durationMs }} ms</span><span>{{ response.body.length }} chars{{ response.truncated ? ' · truncated' : '' }}</span><button class="icon-button" :aria-label="isZh ? '复制响应' : 'Copy response'" @click="copy(response.body)"><Check v-if="copied" :size="14" /><Copy v-else :size="14" /></button><button class="icon-button" :aria-label="isZh ? '清除响应' : 'Clear response'" @click="clearResponse"><X :size="14" /></button></div></div><div v-if="response" class="api-response-tabs"><button :class="{ active: responseTab === 'pretty' }" @click="responseTab = 'pretty'">Pretty</button><button :class="{ active: responseTab === 'raw' }" @click="responseTab = 'raw'">Raw</button><button :class="{ active: responseTab === 'headers' }" @click="responseTab = 'headers'">Headers ({{ Object.keys(response.headers).length }})</button></div><pre v-if="response && responseTab === 'pretty'" class="api-response-body">{{ responseBody }}</pre><pre v-else-if="response && responseTab === 'raw'" class="api-response-body">{{ response.body }}</pre><div v-else-if="response && responseTab === 'headers'" class="api-response-headers"><div v-for="(value, key) in response.headers" :key="key"><code>{{ key }}</code><span>{{ value }}</span></div></div><div v-else class="api-response-empty"><div class="api-empty-icon"><Send :size="18" /></div><div><strong>{{ isZh ? '还没有响应' : 'No response yet' }}</strong><p>{{ isZh ? '配置请求后，点击发送查看状态、响应头和正文。' : 'Configure a request, then send it to inspect status, headers and body.' }}</p></div></div></section>
+        <div class="api-request-bar"><select v-model="method" class="api-method" :aria-label="t('apiHttpMethod')"><option v-for="item in (['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as HttpMethod[])" :key="item">{{ item }}</option></select><input v-model="url" class="utility-input api-url" spellcheck="false" placeholder="https://api.example.com/users" @keydown.ctrl.enter.prevent="sendRequest" @keydown.meta.enter.prevent="sendRequest" /><button class="primary api-send-button" :disabled="loading" @click="sendRequest"><Send :size="14" />{{ loading ? t('apiSending') : t('apiSend') }}</button></div>
+        <div class="api-save-bar"><input v-model="saveName" class="utility-input" :placeholder="t('apiRequestNamePlaceholder')" @keydown.enter="saveRequest" /><button class="ghost-button" @click="saveRequest"><Check :size="13" />{{ currentRequestId ? t('apiUpdate') : t('apiSaveRequest') }}</button><span class="api-save-target">{{ selectedModuleId ? modules.find((item) => item.id === selectedModuleId)?.name : t('apiUngrouped') }}</span><span v-if="saveState === 'saved'" class="api-save-feedback"><Check :size="12" />{{ t('apiSaved') }}</span></div>
+        <div class="api-tabs" role="tablist"><button v-for="tab in (['params', 'headers', 'body'] as ApiTab[])" :key="tab" :class="{ active: activeTab === tab }" role="tab" :aria-selected="activeTab === tab" @click="activeTab = tab">{{ tab === 'params' ? t('apiParams') : tab === 'headers' ? `${t('apiHeaders')} (${headerRows.filter((row) => row.enabled && row.key).length})` : t('apiBody') }}</button></div>
+        <section v-if="activeTab === 'params' || activeTab === 'headers'" class="api-editor-panel"><div class="api-editor-heading"><div><h2>{{ activeTab === 'params' ? t('apiQueryParams') : t('apiHeaders') }}</h2><p>{{ t('apiRowsHint') }}</p></div><button class="ghost-button" @click="addRow(activeTab === 'params' ? queryRows : headerRows)"><Plus :size="13" />{{ t('apiAddRow') }}</button></div><div class="api-kv-head"><span /><span>{{ t('name') }}</span><span>{{ t('value') }}</span><span /></div><div v-for="(row, index) in (activeTab === 'params' ? queryRows : headerRows)" :key="`${activeTab}-${index}`" class="api-kv-row"><input v-model="row.enabled" type="checkbox" :aria-label="t('apiEnableRow')" /><input v-model="row.key" class="utility-input" :placeholder="activeTab === 'params' ? 'userId' : 'Authorization'" /><input v-model="row.value" class="utility-input" :placeholder="activeTab === 'params' ? '1001' : 'Bearer &#123;&#123;TOKEN&#125;&#125;'" /><button class="icon-button" :aria-label="t('apiRemoveRow')" @click="removeRow(activeTab === 'params' ? queryRows : headerRows, index)"><X :size="13" /></button></div></section>
+        <section v-else class="api-editor-panel api-body-panel"><div class="api-editor-heading"><div><h2>JSON Body</h2><p>{{ t('apiBodyHint') }}</p></div><button class="ghost-button" @click="formatBody">{{ t('apiFormatJson') }}</button></div><textarea v-model="body" class="api-body-editor" spellcheck="false" placeholder="{&#10;  &quot;name&quot;: &quot;Jensen&quot;&#10;}" /></section>
+        <div class="api-request-options"><label>{{ t('timeout') }}<input v-model.number="timeoutMs" class="utility-input timeout-input" type="number" min="1000" max="120000" step="1000" /> ms</label><span class="api-shortcut">Ctrl / ⌘ + Enter {{ t('apiSendShortcut') }}</span></div>
+        <section class="api-response-panel"><div class="api-response-heading"><div><span class="section-kicker">{{ t('apiResponse') }}</span><strong v-if="response" :class="`response-status ${responseTone}`">{{ response.status }} {{ response.statusText }}</strong><span v-else class="api-no-response">{{ t('apiWaiting') }}</span></div><div v-if="response" class="api-response-meta"><span>{{ response.durationMs }} ms</span><span>{{ t('apiChars', { count: response.body.length }) }}{{ response.truncated ? ` · ${t('apiTruncated')}` : '' }}</span><button class="icon-button" :aria-label="t('apiCopyResponse')" @click="copy(response.body)"><Check v-if="copied" :size="14" /><Copy v-else :size="14" /></button><button class="icon-button" :aria-label="t('apiClearResponse')" @click="clearResponse"><X :size="14" /></button></div></div><div v-if="response" class="api-response-tabs"><button :class="{ active: responseTab === 'pretty' }" @click="responseTab = 'pretty'">{{ t('apiPretty') }}</button><button :class="{ active: responseTab === 'raw' }" @click="responseTab = 'raw'">{{ t('apiRaw') }}</button><button :class="{ active: responseTab === 'headers' }" @click="responseTab = 'headers'">{{ t('apiHeaders') }} ({{ Object.keys(response.headers).length }})</button></div><pre v-if="response && responseTab === 'pretty'" class="api-response-body">{{ responseBody }}</pre><pre v-else-if="response && responseTab === 'raw'" class="api-response-body">{{ response.body }}</pre><div v-else-if="response && responseTab === 'headers'" class="api-response-headers"><div v-for="(value, key) in response.headers" :key="key"><code>{{ key }}</code><span>{{ value }}</span></div></div><div v-else class="api-response-empty"><div class="api-empty-icon"><Send :size="18" /></div><div><strong>{{ t('apiNoResponse') }}</strong><p>{{ t('apiNoResponseHint') }}</p></div></div></section>
         <p v-if="error" class="api-error">{{ error }}</p>
       </main>
     </div>

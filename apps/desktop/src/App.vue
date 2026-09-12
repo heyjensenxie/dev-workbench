@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import { Command, Copy, Cpu, FolderGit2, Languages, LayoutDashboard, Minus, Moon, Network, PanelLeftClose, PanelLeftOpen, Play, Search, Send, Settings, Square, Sun, Wrench, X } from 'lucide-vue-next'
+import { Command, Copy, Cpu, Database, FolderGit2, Languages, LayoutDashboard, Lock, Minus, Moon, Network, PanelLeftClose, PanelLeftOpen, Play, Search, Send, Settings, ShieldCheck, Square, Sun, Wrench, X } from 'lucide-vue-next'
 import { getCurrentWindow, type Window } from '@tauri-apps/api/window'
 import { onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
+import { VAULT_BACKGROUND_LOCK_SECONDS } from '@dev-workbench/shared'
 import logoUrl from './assets/logo.png'
 import CommandPalette from './components/CommandPalette.vue'
 import { useI18n } from './i18n'
+import { subscribeToVaultLock } from './services/nativeBridge'
 import { useSettingsStore } from './stores/settings'
+import { useVaultStore } from './stores/vault'
 import { useWorkbenchStore } from './stores/workbench'
 
 const store = useWorkbenchStore()
 const settings = useSettingsStore()
+const vault = useVaultStore()
 const { languageLabel, locale, t } = useI18n()
 const paletteOpen = ref(false)
 const isMaximized = ref(false)
@@ -18,6 +22,8 @@ const sidebarCollapsed = ref(initialSidebarCollapsed())
 const version = __APP_VERSION__
 let appWindow: Window | undefined
 let stopWindowResizeListener: (() => void) | undefined
+let stopVaultLockListener: (() => void) | undefined
+let backgroundLockTimer: ReturnType<typeof setTimeout> | undefined
 
 function initialSidebarCollapsed(): boolean {
   try {
@@ -105,10 +111,41 @@ function toggleLanguage(): void {
 }
 function handleKeydown(event: KeyboardEvent): void {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); paletteOpen.value = true }
+  // Manual lock. Deliberately not gated on the vault screen being open: locking
+  // must work from anywhere, and locking never needs confirming.
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'l') {
+    event.preventDefault()
+    void lockVaultNow()
+  }
 }
+
+/** Locks the vault and returns to the lock screen, if either applies. */
+async function lockVaultNow(): Promise<void> {
+  if (vault.screen === 'unlocked' || vault.screen === 'locked') await vault.lock()
+}
+
+/**
+ * Locks the vault when the window has been in the background for long enough.
+ *
+ * The native supervisor already locks on idle time, but a window that is
+ * minimised or hidden stops producing the activity that keeps that deadline
+ * moving, so this makes the intent explicit rather than incidental.
+ */
+function handleVisibilityChange(): void {
+  if (typeof document === 'undefined') return
+  if (document.visibilityState === 'hidden') {
+    if (backgroundLockTimer) clearTimeout(backgroundLockTimer)
+    backgroundLockTimer = setTimeout(() => { void lockVaultNow() }, VAULT_BACKGROUND_LOCK_SECONDS * 1_000)
+    return
+  }
+  if (backgroundLockTimer) clearTimeout(backgroundLockTimer)
+  backgroundLockTimer = undefined
+}
+
 onMounted(() => {
   void bootstrap()
   window.addEventListener('keydown', handleKeydown)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
   void refreshWindowState()
   if (hasTauriWindow()) {
     const currentWindow = getAppWindow()
@@ -117,17 +154,33 @@ onMounted(() => {
         .then((unlisten) => { stopWindowResizeListener = unlisten })
         .catch((error) => { console.warn('Unable to subscribe to native window resize events.', error) })
     }
+    // The native supervisor reports locks it performed itself (idle timeout,
+    // resume from sleep); the UI must drop everything it is holding when that
+    // arrives, not just mark itself locked.
+    void subscribeToVaultLock(() => {
+      void vault.handleNativeLock()
+      // Re-hide any revealed value even if the screen was already locked.
+      vault.hideSecrets()
+    })
+      .then((unlisten) => { stopVaultLockListener = unlisten })
+      .catch((error) => { console.warn('Unable to subscribe to native vault lock events.', error) })
   }
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  if (backgroundLockTimer) clearTimeout(backgroundLockTimer)
   stopWindowResizeListener?.()
+  stopVaultLockListener?.()
 })
 
 async function bootstrap(): Promise<void> {
   await settings.load()
   await store.initialize()
+  // The vault always starts locked; this only reads its status so the sidebar can
+  // show the lock state. Nothing is decrypted here.
+  await vault.refreshStatus()
   const lastProject = store.projects[0]
   if (settings.openLastProject && lastProject) await store.activateProject(lastProject)
 }
@@ -189,6 +242,10 @@ async function bootstrap(): Promise<void> {
             <span class="sidebar-icon-slot"><Network :size="18" /></span>
             <span v-if="!sidebarCollapsed" class="sidebar-nav-label">{{ t('ports') }}</span>
           </RouterLink>
+          <RouterLink class="sidebar-nav-item" to="/database" :aria-label="t('database')" :data-tooltip="sidebarCollapsed ? t('database') : undefined">
+            <span class="sidebar-icon-slot"><Database :size="18" /></span>
+            <span v-if="!sidebarCollapsed" class="sidebar-nav-label">{{ t('database') }}</span>
+          </RouterLink>
         </div>
         <div class="sidebar-group">
           <span v-if="!sidebarCollapsed" class="sidebar-section-label">{{ t('utilitiesGroup') }}</span>
@@ -196,9 +253,24 @@ async function bootstrap(): Promise<void> {
             <span class="sidebar-icon-slot"><Wrench :size="18" /></span>
             <span v-if="!sidebarCollapsed" class="sidebar-nav-label">{{ t('utilities') }}</span>
           </RouterLink>
-          <RouterLink class="sidebar-nav-item" to="/api" aria-label="API Workbench" :data-tooltip="sidebarCollapsed ? 'API Workbench' : undefined">
+          <RouterLink class="sidebar-nav-item" to="/api" :aria-label="t('apiWorkbench')" :data-tooltip="sidebarCollapsed ? t('apiWorkbench') : undefined">
             <span class="sidebar-icon-slot"><Send :size="18" /></span>
-            <span v-if="!sidebarCollapsed" class="sidebar-nav-label">API Workbench</span>
+            <span v-if="!sidebarCollapsed" class="sidebar-nav-label">{{ t('apiWorkbench') }}</span>
+          </RouterLink>
+        </div>
+        <!--
+          The vault gets its own group rather than sitting among the utilities.
+          It is not another developer tool: it is a separate security domain, and
+          the navigation should make that legible. The lock indicator reflects
+          live state so a locked vault is obvious at a glance.
+        -->
+        <div class="sidebar-group sidebar-group-security">
+          <span v-if="!sidebarCollapsed" class="sidebar-section-label">{{ t('vaultGroup') }}</span>
+          <RouterLink class="sidebar-nav-item" to="/vault" :aria-label="t('vault')" :data-tooltip="sidebarCollapsed ? t('vault') : undefined">
+            <span class="sidebar-icon-slot"><ShieldCheck :size="18" /></span>
+            <span v-if="!sidebarCollapsed" class="sidebar-nav-label">{{ t('vault') }}</span>
+            <span v-if="!sidebarCollapsed && vault.screen === 'unlocked'" class="vault-state-dot" :title="t('vaultUnlock')"></span>
+            <Lock v-else-if="!sidebarCollapsed && vault.screen !== 'loading'" class="vault-state-lock" :size="11" />
           </RouterLink>
         </div>
       </nav>

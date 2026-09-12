@@ -1,5 +1,5 @@
 import type { LocaleName, ThemeName, WorkbenchSettings } from '@dev-workbench/shared'
-import { AppError, clampLogLimit } from '@dev-workbench/shared'
+import { AppError, DEFAULT_VAULT_AUTO_LOCK_SECONDS, DEFAULT_VAULT_CLIPBOARD_CLEAR_SECONDS, clampLogLimit } from '@dev-workbench/shared'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { locale as activeLocale, setLocale as applyLocale } from '../i18n'
@@ -40,6 +40,8 @@ export const useSettingsStore = defineStore('settings', () => {
   const openLastProject = ref(true)
   const logLimit = ref(DEFAULT_LOG_LIMIT)
   const confirmBeforeKill = ref(true)
+  const vaultAutoLockSeconds = ref(DEFAULT_VAULT_AUTO_LOCK_SECONDS)
+  const vaultClipboardClearSeconds = ref(DEFAULT_VAULT_CLIPBOARD_CLEAR_SECONDS)
   const loaded = ref(false)
   const error = ref<string>()
 
@@ -63,6 +65,8 @@ export const useSettingsStore = defineStore('settings', () => {
       if (stored.openLastProject !== undefined) openLastProject.value = stored.openLastProject
       if (stored.logLimit !== undefined) logLimit.value = stored.logLimit
       if (stored.confirmBeforeKill !== undefined) confirmBeforeKill.value = stored.confirmBeforeKill
+      if (stored.vaultAutoLockSeconds !== undefined) vaultAutoLockSeconds.value = stored.vaultAutoLockSeconds
+      if (stored.vaultClipboardClearSeconds !== undefined) vaultClipboardClearSeconds.value = stored.vaultClipboardClearSeconds
       applyTheme(theme.value)
       resolvedTheme.value = theme.value === 'system' ? (prefersDark() ? 'dark' : 'light') : theme.value
       loaded.value = true
@@ -112,7 +116,8 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   return {
-    theme, resolvedTheme, locale, openLastProject, logLimit, confirmBeforeKill, loaded, error,
+    theme, resolvedTheme, locale, openLastProject, logLimit, confirmBeforeKill,
+    vaultAutoLockSeconds, vaultClipboardClearSeconds, loaded, error,
     load, setTheme, toggleTheme, setLocale, setOpenLastProject, setLogLimit, setConfirmBeforeKill,
   }
 })

@@ -9,6 +9,7 @@ members = [
   "crates/git",
   "crates/secrets",
   "crates/pty",
+  "crates/vault",
 ]
 
 [workspace.package]

@@ -1,8 +1,9 @@
-import type { ProjectContext } from '@dev-workbench/shared'
+import type { DatabaseContext, ProjectContext } from '@dev-workbench/shared'
 
 export interface WorkbenchState {
   activeProjectId?: string
   projects: Record<string, ProjectContext>
+  database?: DatabaseContext | undefined
 }
 
 export class ContextStore {
@@ -23,6 +24,15 @@ export class ContextStore {
     this.emit()
   }
 
+  setDatabase(database?: DatabaseContext): void {
+    if (database) this.state = { ...this.state, database }
+    else {
+      const { database: _database, ...state } = this.state
+      this.state = state
+    }
+    this.emit()
+  }
+
   subscribe(listener: (state: Readonly<WorkbenchState>) => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
@@ -32,4 +42,3 @@ export class ContextStore {
     this.listeners.forEach((listener) => listener(this.state))
   }
 }
-
