@@ -17,7 +17,8 @@ const inputFreeCommands = new Set(['process.list', 'port.list', 'service.listRun
 const utilityCommands = new Set(['utility.sql.open', 'utility.mybatis.restore.open', 'utility.api.open'])
 const databaseCommands = new Set(['database.open'])
 const vaultCommands = new Set(['vault.open'])
-const paletteCommands = new Set(['project.open', 'project.refresh', 'service.startAll', 'service.stopAll', ...inputFreeCommands, ...utilityCommands, ...databaseCommands, ...vaultCommands])
+const fileCommands = new Set(['file.open'])
+const paletteCommands = new Set(['project.open', 'project.refresh', 'service.startAll', 'service.stopAll', ...inputFreeCommands, ...utilityCommands, ...databaseCommands, ...vaultCommands, ...fileCommands])
 /** Localized labels for registry commands, which are authored in English. */
 const commandLabels: Record<string, { title: MessageKey; category?: MessageKey }> = {
   'project.open': { title: 'commandProjectOpen', category: 'categoryProject' },
@@ -31,6 +32,7 @@ const commandLabels: Record<string, { title: MessageKey; category?: MessageKey }
   'utility.sql.open': { title: 'commandSqlOpen', category: 'categoryUtilitiesDatabase' },
   'utility.mybatis.restore.open': { title: 'commandMybatisOpen', category: 'categoryUtilitiesDatabase' },
   'utility.api.open': { title: 'commandApiOpen', category: 'categoryUtilitiesApi' },
+  'file.open': { title: 'commandFileOpen', category: 'categoryFile' },
   'database.open': { title: 'commandDatabaseOpen', category: 'categoryDatabase' },
   // Only two vault commands exist, and neither can return a secret.
   'vault.open': { title: 'commandVaultOpen', category: 'categorySecurity' },
@@ -94,6 +96,8 @@ async function execute(id: string): Promise<void> {
     await router.push({ name: 'database' })
   } else if (vaultCommands.has(id)) {
     await router.push({ name: 'vault' })
+  } else if (fileCommands.has(id)) {
+    await router.push({ name: 'files' })
   } else if (inputFreeCommands.has(id)) {
     await workbench.commands.execute(id, undefined, workbench.commandContext)
   }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Command, Copy, Cpu, Database, FolderGit2, Languages, LayoutDashboard, Lock, Minus, Moon, Network, PanelLeftClose, PanelLeftOpen, Play, Search, Send, Settings, ShieldCheck, Square, Sun, Wrench, X } from 'lucide-vue-next'
+import { Command, Copy, Cpu, Database, FileImage, FolderGit2, Languages, LayoutDashboard, Lock, Minus, Moon, Network, PanelLeftClose, PanelLeftOpen, Play, Search, Send, Settings, ShieldCheck, Square, Sun, Wrench, X } from 'lucide-vue-next'
 import { getCurrentWindow, type Window } from '@tauri-apps/api/window'
 import { onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
@@ -256,6 +256,10 @@ async function bootstrap(): Promise<void> {
           <RouterLink class="sidebar-nav-item" to="/api" :aria-label="t('apiWorkbench')" :data-tooltip="sidebarCollapsed ? t('apiWorkbench') : undefined">
             <span class="sidebar-icon-slot"><Send :size="18" /></span>
             <span v-if="!sidebarCollapsed" class="sidebar-nav-label">{{ t('apiWorkbench') }}</span>
+          </RouterLink>
+          <RouterLink class="sidebar-nav-item" to="/files" :aria-label="t('fileWorkbench')" :data-tooltip="sidebarCollapsed ? t('fileWorkbench') : undefined">
+            <span class="sidebar-icon-slot"><FileImage :size="18" /></span>
+            <span v-if="!sidebarCollapsed" class="sidebar-nav-label">{{ t('fileWorkbench') }}</span>
           </RouterLink>
         </div>
         <!--

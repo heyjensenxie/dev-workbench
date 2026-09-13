@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { listen } from '@tauri-apps/api/event'
 import type { NativeBridge, VaultBridge } from '@dev-workbench/core'
-import type { ApiModule, ConnectionTestResult, DatabaseConnectionConfig, DatabaseInfo, DevService, HttpRequest, HttpResponse, PortInfo, ProcessInfo, Project, ProjectContext, QueryResult, RunningService, SavedApiRequest, ServiceLogEvent, ServiceState, TableInfo, VaultBackupSummary, VaultGeneratorOptions, VaultImportOutcome, VaultItem, VaultItemPayload, VaultItemSummary, VaultLockReason, VaultStatus } from '@dev-workbench/shared'
+import type { ApiModule, ConnectionTestResult, DatabaseConnectionConfig, DatabaseInfo, DevService, FileEngineStatus, HttpRequest, HttpResponse, ImagesToPdfRequest, PdfCompressionRequest, PdfCompressionResult, PdfMergeRequest, PdfSplitRequest, PdfToWordRequest, PortInfo, ProcessInfo, Project, ProjectContext, QueryResult, RunningService, SavedApiRequest, ServiceLogEvent, ServiceState, TableInfo, VaultBackupSummary, VaultGeneratorOptions, VaultImportOutcome, VaultItem, VaultItemPayload, VaultItemSummary, VaultLockReason, VaultStatus, WordToPdfRequest } from '@dev-workbench/shared'
 
 /**
  * The vault bridge. Kept as its own object so that vault access is always an
@@ -66,6 +66,14 @@ class TauriNativeBridge implements NativeBridge {
   getSettings = () => invoke<Record<string, unknown>>('get_settings')
   setSetting = (key: string, value: unknown) => invoke<void>('set_setting', { key, value })
   httpRequest = (request: HttpRequest) => invoke<HttpResponse>('http_request', { request })
+  fileEngineStatus = () => invoke<FileEngineStatus>('file_engine_status')
+  compressPdf = (request: PdfCompressionRequest) => invoke<PdfCompressionResult>('compress_pdf', { request })
+  mergePdfs = (request: PdfMergeRequest) => invoke<PdfCompressionResult>('merge_pdfs', { request })
+  splitPdf = (request: PdfSplitRequest) => invoke<PdfCompressionResult>('split_pdf', { request })
+  pdfToWord = (request: PdfToWordRequest) => invoke<PdfCompressionResult>('pdf_to_word', { request })
+  wordToPdf = (request: WordToPdfRequest) => invoke<PdfCompressionResult>('word_to_pdf', { request })
+  imagesToPdf = (request: ImagesToPdfRequest) => invoke<PdfCompressionResult>('images_to_pdf', { request })
+  writeFileBytes = (path: string, content: number[]) => invoke<void>('write_file_bytes', { path, content })
   listApiModules = () => invoke<ApiModule[]>('list_api_modules')
   saveApiModule = (module: ApiModule) => invoke<ApiModule>('save_api_module', { module })
   deleteApiModule = (moduleId: string) => invoke<boolean>('delete_api_module', { moduleId })

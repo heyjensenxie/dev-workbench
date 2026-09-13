@@ -179,6 +179,71 @@ export interface HttpResponse {
   truncated: boolean
 }
 
+/** Local file-processing dependencies detected without inspecting user files. */
+export interface FileEngineProbe {
+  detected: boolean
+  provider?: string
+  version?: string
+}
+
+export interface FileEngineStatus {
+  pdf: FileEngineProbe
+  pdfCompressor: FileEngineProbe
+  document: FileEngineProbe
+}
+
+export type PdfCompressionPreset = 'high' | 'balanced' | 'small'
+
+export interface PdfCompressionRequest {
+  inputPath: string
+  outputPath: string
+  preset: PdfCompressionPreset
+  inputBytes?: number[]
+}
+
+export interface PdfCompressionResult {
+  inputPath: string
+  outputPath: string
+  inputBytes: number
+  outputBytes: number
+  durationMs: number
+}
+
+export interface PdfMergeRequest {
+  inputPaths: string[]
+  outputPath: string
+  inputBytes?: number[][]
+}
+
+export interface PdfSplitRequest {
+  inputPath: string
+  outputPath: string
+  pages: string
+  inputBytes?: number[]
+}
+
+export interface PdfToWordRequest {
+  inputPath: string
+  outputPath: string
+  inputBytes?: number[]
+}
+
+export interface WordToPdfRequest {
+  inputPath: string
+  outputPath: string
+  inputBytes?: number[]
+}
+
+export interface ImagesToPdfInput {
+  name: string
+  bytes: number[]
+}
+
+export interface ImagesToPdfRequest {
+  outputPath: string
+  images: ImagesToPdfInput[]
+}
+
 /** Persisted API request template; environment values are intentionally not included. */
 export interface SavedApiRequest {
   id: string

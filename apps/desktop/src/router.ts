@@ -10,6 +10,7 @@ import UtilitiesView from './views/UtilitiesView.vue'
 import ApiWorkbenchView from './views/ApiWorkbenchView.vue'
 import DatabaseWorkbenchView from './views/DatabaseWorkbenchView.vue'
 import VaultView from './views/VaultView.vue'
+import FileWorkbenchView from './views/FileWorkbenchView.vue'
 
 export const router = createRouter({
   history: createWebHashHistory(),
@@ -26,6 +27,7 @@ export const router = createRouter({
     // The vault is its own route on purpose: it is not a utility, and it must be
     // reachable by name so that no generic navigation can land on decrypted data.
     { path: '/vault', name: 'vault', component: VaultView },
+    { path: '/files', name: 'files', component: FileWorkbenchView },
     { path: '/settings', name: 'settings', component: SettingsView },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],

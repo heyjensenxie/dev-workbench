@@ -13,6 +13,8 @@ pub enum AppError {
     Network(#[from] workbench_network::NetworkError),
     #[error("API request failed: {0}")]
     Api(#[from] crate::api::ApiError),
+    #[error("file engine failed: {0}")]
+    FileEngine(#[from] crate::file_engine::FileEngineError),
     /// Vault failures keep their own wording: "Incorrect master password." is the
     /// single, deliberately uniform message and must not be rephrased here.
     #[error("{0}")]
@@ -39,6 +41,7 @@ impl Serialize for AppError {
             Self::Validation(_) => "VALIDATION_ERROR",
             Self::NotFound(_) => "NOT_FOUND",
             Self::Database(_) => "DATABASE_ERROR",
+            Self::FileEngine(_) => "NATIVE_ERROR",
             Self::Vault(workbench_vault::VaultError::Validation(_)) => "VALIDATION_ERROR",
             // A locked vault and a wrong master password both need their own
             // handling in the UI, so they are surfaced as distinct codes without

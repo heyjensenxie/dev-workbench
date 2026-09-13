@@ -21,6 +21,9 @@ uuid.workspace = true
 chrono.workspace = true
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
+lopdf = "0.44"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "mysql", "chrono"] }
 dirs = "6"
 workbench-process = { path = "../../../crates/process" }

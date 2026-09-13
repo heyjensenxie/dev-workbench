@@ -1,7 +1,7 @@
 import { CommandRegistry, type Command, type CommandContext, type ServiceContainer as ServiceContainerContract } from '@dev-workbench/command'
 import { ContextStore } from '@dev-workbench/context'
 import { AppError, createServiceId, validateDevService } from '@dev-workbench/shared'
-import type { ApiModule, ConnectionTestResult, DatabaseConnectionConfig, DatabaseInfo, DevService, HttpRequest, HttpResponse, PortInfo, ProcessInfo, Project, ProjectContext, QueryResult, RunningService, SavedApiRequest, ServiceState, SuggestedService, TableInfo, VaultBackupSummary, VaultGeneratorOptions, VaultImportOutcome, VaultItem, VaultItemPayload, VaultItemSummary, VaultStatus } from '@dev-workbench/shared'
+import type { ApiModule, ConnectionTestResult, DatabaseConnectionConfig, DatabaseInfo, DevService, FileEngineStatus, HttpRequest, HttpResponse, ImagesToPdfRequest, PdfCompressionRequest, PdfCompressionResult, PdfMergeRequest, PdfSplitRequest, PdfToWordRequest, PortInfo, ProcessInfo, Project, ProjectContext, QueryResult, RunningService, SavedApiRequest, ServiceState, SuggestedService, TableInfo, VaultBackupSummary, VaultGeneratorOptions, VaultImportOutcome, VaultItem, VaultItemPayload, VaultItemSummary, VaultStatus, WordToPdfRequest } from '@dev-workbench/shared'
 import { SettingsService } from './settings'
 import { SystemService } from './system'
 
@@ -121,6 +121,14 @@ export interface NativeBridge {
   getSettings(): Promise<Record<string, unknown>>
   setSetting(key: string, value: unknown): Promise<void>
   httpRequest(request: HttpRequest): Promise<HttpResponse>
+  fileEngineStatus?(): Promise<FileEngineStatus>
+  compressPdf?(request: PdfCompressionRequest): Promise<PdfCompressionResult>
+  mergePdfs?(request: PdfMergeRequest): Promise<PdfCompressionResult>
+  splitPdf?(request: PdfSplitRequest): Promise<PdfCompressionResult>
+  pdfToWord?(request: PdfToWordRequest): Promise<PdfCompressionResult>
+  wordToPdf?(request: WordToPdfRequest): Promise<PdfCompressionResult>
+  imagesToPdf?(request: ImagesToPdfRequest): Promise<PdfCompressionResult>
+  writeFileBytes?(path: string, content: number[]): Promise<void>
   listApiModules(): Promise<ApiModule[]>
   saveApiModule(module: ApiModule): Promise<ApiModule>
   deleteApiModule(moduleId: string): Promise<boolean>
@@ -550,6 +558,7 @@ function registerCoreCommands(registry: CommandRegistry, vault: VaultCatalog): v
     { id: 'database.transaction.rollback', title: 'Rollback Transaction', category: 'Database', execute: async () => 'database.transaction.rollback' },
     { id: 'utility.mybatis.restore.open', title: 'Open MyBatis SQL Restore', category: 'Utilities / Database', execute: async () => 'mybatis-restore' },
     { id: 'utility.api.open', title: 'Open API Workbench', category: 'Utilities / API', execute: async () => 'api' },
+    { id: 'file.open', title: 'Open File Workbench', category: 'File Workbench', execute: async () => 'files' },
     { id: 'utility.api.send', title: 'Send API Request', category: 'Utilities / API', execute: (input, ctx) => ctx.services.get<NativeBridge>('nativeBridge').httpRequest(input as HttpRequest) },
     { id: 'api.module.list', title: 'List API Modules', category: 'API', execute: (_, ctx) => ctx.services.get<ApiCatalog>('api').listModules() },
     { id: 'api.module.save', title: 'Save API Module', category: 'API', execute: (input, ctx) => ctx.services.get<ApiCatalog>('api').saveModule(input as ApiModule) },

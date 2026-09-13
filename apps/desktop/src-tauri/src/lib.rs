@@ -1,6 +1,7 @@
 mod api;
 mod database;
 mod error;
+mod file_engine;
 mod manifest;
 mod models;
 mod repository;
@@ -343,6 +344,17 @@ async fn write_database_export(path: String, content: String) -> Result<(), AppE
 }
 
 #[tauri::command]
+async fn write_file_bytes(path: String, content: Vec<u8>) -> Result<(), AppError> {
+    if path.trim().is_empty() {
+        return Err(AppError::Validation(
+            "file output path must not be empty".into(),
+        ));
+    }
+    tokio::fs::write(Path::new(&path), content).await?;
+    Ok(())
+}
+
+#[tauri::command]
 fn store_database_password(connection_id: String, password: String) -> Result<(), AppError> {
     workbench_secrets::write(
         &format!("DevWorkbench/Database/{connection_id}"),
@@ -367,6 +379,72 @@ fn delete_database_password(connection_id: String) -> Result<(), AppError> {
 #[tauri::command]
 async fn http_request(request: api::HttpRequest) -> Result<api::HttpResponse, AppError> {
     Ok(api::send(request).await?)
+}
+
+#[tauri::command]
+async fn compress_pdf(
+    request: file_engine::PdfCompressionRequest,
+) -> Result<file_engine::PdfCompressionResult, AppError> {
+    tokio::task::spawn_blocking(move || file_engine::compress_pdf(request))
+        .await
+        .map_err(|error| AppError::Validation(format!("PDF compression task failed: {error}")))?
+        .map_err(AppError::from)
+}
+
+#[tauri::command]
+async fn merge_pdfs(
+    request: file_engine::PdfMergeRequest,
+) -> Result<file_engine::PdfCompressionResult, AppError> {
+    tokio::task::spawn_blocking(move || file_engine::merge_pdfs(request))
+        .await
+        .map_err(|error| AppError::Validation(format!("PDF merge task failed: {error}")))?
+        .map_err(AppError::from)
+}
+
+#[tauri::command]
+async fn split_pdf(
+    request: file_engine::PdfSplitRequest,
+) -> Result<file_engine::PdfCompressionResult, AppError> {
+    tokio::task::spawn_blocking(move || file_engine::split_pdf(request))
+        .await
+        .map_err(|error| AppError::Validation(format!("PDF split task failed: {error}")))?
+        .map_err(AppError::from)
+}
+
+#[tauri::command]
+async fn pdf_to_word(
+    request: file_engine::PdfToWordRequest,
+) -> Result<file_engine::PdfCompressionResult, AppError> {
+    tokio::task::spawn_blocking(move || file_engine::pdf_to_word(request))
+        .await
+        .map_err(|error| AppError::Validation(format!("PDF to Word task failed: {error}")))?
+        .map_err(AppError::from)
+}
+
+#[tauri::command]
+async fn word_to_pdf(
+    request: file_engine::WordToPdfRequest,
+) -> Result<file_engine::PdfCompressionResult, AppError> {
+    tokio::task::spawn_blocking(move || file_engine::word_to_pdf(request))
+        .await
+        .map_err(|error| AppError::Validation(format!("Word to PDF task failed: {error}")))?
+        .map_err(AppError::from)
+}
+
+#[tauri::command]
+async fn images_to_pdf(
+    request: file_engine::ImagesToPdfRequest,
+) -> Result<file_engine::PdfCompressionResult, AppError> {
+    tokio::task::spawn_blocking(move || file_engine::images_to_pdf(request))
+        .await
+        .map_err(|error| AppError::Validation(format!("Images to PDF task failed: {error}")))?
+        .map_err(AppError::from)
+}
+
+/// Reports installed local processing providers without touching user files.
+#[tauri::command]
+fn file_engine_status() -> Result<file_engine::FileEngineStatus, AppError> {
+    Ok(file_engine::detect())
 }
 
 #[tauri::command]
@@ -484,6 +562,14 @@ pub fn run() {
             read_database_password,
             delete_database_password,
             http_request,
+            write_file_bytes,
+            file_engine_status,
+            compress_pdf,
+            merge_pdfs,
+            split_pdf,
+            pdf_to_word,
+            word_to_pdf,
+            images_to_pdf,
             list_api_modules,
             save_api_module,
             delete_api_module,
