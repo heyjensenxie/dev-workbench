@@ -251,7 +251,7 @@ where
 #[cfg(windows)]
 mod platform {
     use super::*;
-    use std::process::Command as StdCommand;
+    use std::{os::windows::process::CommandExt, process::Command as StdCommand};
 
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
@@ -267,6 +267,7 @@ mod platform {
             .args(["/PID", &pid.to_string(), "/T", "/F"])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
+            .creation_flags(CREATE_NO_WINDOW)
             .status()
             .is_ok_and(|status| status.success())
     }

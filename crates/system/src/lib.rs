@@ -109,7 +109,12 @@ pub fn kill_process_tree(pid: u32) -> bool {
 
 #[cfg(windows)]
 mod platform {
-    use std::process::{Command, Stdio};
+    use std::{
+        os::windows::process::CommandExt,
+        process::{Command, Stdio},
+    };
+
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
     /// Windows has no graceful console signal, so termination is always forced.
     /// `taskkill /T` walks the OS parent chain, which also covers children
@@ -123,6 +128,7 @@ mod platform {
         command
             .stdout(Stdio::null())
             .stderr(Stdio::null())
+            .creation_flags(CREATE_NO_WINDOW)
             .status()
             .is_ok_and(|status| status.success())
     }

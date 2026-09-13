@@ -83,10 +83,17 @@ pub(crate) fn parse_netstat(text: &str) -> Vec<PortInfo> {
 #[cfg(windows)]
 mod platform {
     use super::*;
+    use std::os::windows::process::CommandExt;
+
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
     pub fn list_ports() -> Result<Vec<PortInfo>, NetworkError> {
         let output = Command::new("netstat")
             .args(["-ano", "-p", "tcp"])
+            // `netstat` is a console executable. The desktop app is a GUI
+            // process, so Windows would otherwise create a visible console
+            // window for every port refresh.
+            .creation_flags(CREATE_NO_WINDOW)
             .output()?;
         Ok(parse_netstat(&String::from_utf8_lossy(&output.stdout)))
     }
