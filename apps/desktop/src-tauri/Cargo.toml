@@ -22,7 +22,7 @@ chrono.workspace = true
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "mysql", "chrono"] }
-dirs = "6"
+dirs = "7"
 workbench-process = { path = "../../../crates/process" }
 workbench-system = { path = "../../../crates/system" }
 workbench-network = { path = "../../../crates/network" }
