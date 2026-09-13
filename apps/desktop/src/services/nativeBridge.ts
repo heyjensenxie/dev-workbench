@@ -76,6 +76,7 @@ class TauriNativeBridge implements NativeBridge {
   listDatabaseDatabases = (config: DatabaseConnectionConfig) => invoke<DatabaseInfo[]>('list_database_databases', { config })
   listDatabaseTables = (config: DatabaseConnectionConfig, database: string) => invoke<TableInfo[]>('list_database_tables', { config, database })
   queryDatabase = (config: DatabaseConnectionConfig, sql: string) => invoke<QueryResult>('query_database', { config, sql })
+  writeDatabaseExport = (path: string, content: string) => invoke<void>('write_database_export', { path, content })
   storeDatabasePassword = (connectionId: string, password: string) => invoke<void>('store_database_password', { connectionId, password })
   readDatabasePassword = async (connectionId: string) => (await invoke<string | null>('read_database_password', { connectionId })) ?? undefined
   deleteDatabasePassword = (connectionId: string) => invoke<void>('delete_database_password', { connectionId })

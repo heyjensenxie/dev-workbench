@@ -1,3 +1,4 @@
+use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::{
@@ -291,6 +292,18 @@ fn is_read_query(sql: &str) -> bool {
     .any(|prefix| normalized.starts_with(prefix))
 }
 
+fn binary_value(bytes: Option<Vec<u8>>) -> Value {
+    bytes.map_or(Value::Null, |bytes| {
+        Value::String(format!(
+            "0x{}",
+            bytes
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        ))
+    })
+}
+
 fn mysql_value(row: &MySqlRow, index: usize, type_name: &str) -> Value {
     match type_name {
         "TINYINT" | "SMALLINT" | "MEDIUMINT" | "INT" | "INTEGER" | "BIGINT" => row
@@ -301,10 +314,33 @@ fn mysql_value(row: &MySqlRow, index: usize, type_name: &str) -> Value {
             .try_get::<Option<f64>, _>(index)
             .map(|value| value.map_or(Value::Null, |value| json!(value)))
             .unwrap_or_else(|_| Value::String("<unreadable>".into())),
-        _ => row
-            .try_get::<Option<String>, _>(index)
-            .map(|value| value.map_or(Value::Null, Value::String))
-            .unwrap_or_else(|_| Value::String("<binary>".into())),
+        "DATE" => row
+            .try_get::<Option<NaiveDate>, _>(index)
+            .map(|value| value.map_or(Value::Null, |value| Value::String(value.to_string())))
+            .unwrap_or_else(|_| Value::String("<unreadable>".into())),
+        "DATETIME" => row
+            .try_get::<Option<NaiveDateTime>, _>(index)
+            .map(|value| value.map_or(Value::Null, |value| Value::String(value.to_string())))
+            .unwrap_or_else(|_| Value::String("<unreadable>".into())),
+        "TIMESTAMP" => row
+            .try_get::<Option<DateTime<Utc>>, _>(index)
+            .map(|value| {
+                value.map_or(Value::Null, |value| {
+                    Value::String(value.naive_utc().to_string())
+                })
+            })
+            .unwrap_or_else(|_| Value::String("<unreadable>".into())),
+        "TIME" => row
+            .try_get::<Option<NaiveTime>, _>(index)
+            .map(|value| value.map_or(Value::Null, |value| Value::String(value.to_string())))
+            .unwrap_or_else(|_| Value::String("<unreadable>".into())),
+        _ => match row.try_get::<Option<String>, _>(index) {
+            Ok(value) => value.map_or(Value::Null, Value::String),
+            Err(_) => row
+                .try_get::<Option<Vec<u8>>, _>(index)
+                .map(binary_value)
+                .unwrap_or_else(|_| Value::String("<unreadable>".into())),
+        },
     }
 }
 
@@ -318,10 +354,40 @@ fn sqlite_value(row: &SqliteRow, index: usize, type_name: &str) -> Value {
             .try_get::<Option<f64>, _>(index)
             .map(|value| value.map_or(Value::Null, |value| json!(value)))
             .unwrap_or_else(|_| Value::String("<unreadable>".into())),
-        _ => row
-            .try_get::<Option<String>, _>(index)
-            .map(|value| value.map_or(Value::Null, Value::String))
-            .unwrap_or_else(|_| Value::String("<binary>".into())),
+        "DATE" => row
+            .try_get::<Option<NaiveDate>, _>(index)
+            .map(|value| value.map_or(Value::Null, |value| Value::String(value.to_string())))
+            .unwrap_or_else(|_| Value::String("<unreadable>".into())),
+        "DATETIME" | "TIMESTAMP" => row
+            .try_get::<Option<NaiveDateTime>, _>(index)
+            .map(|value| value.map_or(Value::Null, |value| Value::String(value.to_string())))
+            .unwrap_or_else(|_| Value::String("<unreadable>".into())),
+        "TIME" => row
+            .try_get::<Option<NaiveTime>, _>(index)
+            .map(|value| value.map_or(Value::Null, |value| Value::String(value.to_string())))
+            .unwrap_or_else(|_| Value::String("<unreadable>".into())),
+        _ => match row.try_get::<Option<String>, _>(index) {
+            Ok(value) => value.map_or(Value::Null, Value::String),
+            Err(_) => row
+                .try_get::<Option<Vec<u8>>, _>(index)
+                .map(binary_value)
+                .unwrap_or_else(|_| Value::String("<unreadable>".into())),
+        },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::binary_value;
+    use serde_json::Value;
+
+    #[test]
+    fn preserves_binary_bytes_as_hex() {
+        assert_eq!(
+            binary_value(Some(vec![0x00, 0x2a, 0xff])),
+            Value::String("0x002aff".into())
+        );
+        assert_eq!(binary_value(None), Value::Null);
     }
 }
 

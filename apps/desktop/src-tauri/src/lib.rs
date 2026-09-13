@@ -334,6 +334,15 @@ async fn query_database(
 }
 
 #[tauri::command]
+async fn write_database_export(path: String, content: String) -> Result<(), AppError> {
+    if path.trim().is_empty() {
+        return Err(AppError::Validation("export path must not be empty".into()));
+    }
+    tokio::fs::write(Path::new(&path), content).await?;
+    Ok(())
+}
+
+#[tauri::command]
 fn store_database_password(connection_id: String, password: String) -> Result<(), AppError> {
     workbench_secrets::write(
         &format!("DevWorkbench/Database/{connection_id}"),
@@ -470,6 +479,7 @@ pub fn run() {
             list_database_databases,
             list_database_tables,
             query_database,
+            write_database_export,
             store_database_password,
             read_database_password,
             delete_database_password,
