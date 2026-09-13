@@ -5798,7 +5798,7 @@ name = "workbench-vault"
 version = "0.1.0-alpha.2"
 dependencies = [
  "argon2",
- "base64 0.22.1",
+ "base64 0.23.1",
  "chacha20poly1305",
  "libc",
  "rand 0.8.8",
